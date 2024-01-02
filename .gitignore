@@ -1,3 +1,6 @@
+.idea
+work_dirs
+ckpts
 
 .DS_Store
 data/annotations.json
