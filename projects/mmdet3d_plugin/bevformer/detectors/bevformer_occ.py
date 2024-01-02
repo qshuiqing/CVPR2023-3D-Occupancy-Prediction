@@ -130,7 +130,7 @@ class BEVFormerOcc(MVXTwoStageDetector):
             dict: Losses of each branch.
         """
 
-        outs = self.pts_bbox_head(
+        outs = self.pts_bbox_head(  # BEVFormerOccHead
             pts_feats, img_metas, prev_bev)
         loss_inputs = [voxel_semantics, mask_camera, outs]
         losses = self.pts_bbox_head.loss(*loss_inputs, img_metas=img_metas)

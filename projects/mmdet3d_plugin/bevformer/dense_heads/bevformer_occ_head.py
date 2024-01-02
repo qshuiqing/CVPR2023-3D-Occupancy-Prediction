@@ -133,7 +133,7 @@ class BEVFormerOccHead(BaseModule):
                 prev_bev=prev_bev,
             )
         else:
-            outputs = self.transformer(
+            outputs = self.transformer(  # TransformerOcc
                 mlvl_feats,
                 bev_queries,
                 object_query_embeds,
