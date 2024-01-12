@@ -257,7 +257,7 @@ def main():
             ]:
                 eval_kwargs.pop(key, None)
             eval_kwargs.update(dict(metric=args.eval, **kwargs))
-            eval_kwargs.update(dict(epoch=args.checkpoint[:-4]))
+            eval_kwargs.update(dict(epoch=args.checkpoint.split('/')[-1][:-4], **kwargs))
 
             dataset.evaluate_miou(outputs, show_dir=args.show_dir, **eval_kwargs)
 
