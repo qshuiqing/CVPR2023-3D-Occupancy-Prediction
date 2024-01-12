@@ -1,20 +1,19 @@
 import copy
+import csv
 import os
+import random
+from os import path as osp
+
+import mmcv
 import numpy as np
-from tqdm import tqdm
+import torch
+from mmcv.parallel import DataContainer as DC
 from mmdet.datasets import DATASETS
 from mmdet3d.datasets import NuScenesDataset
-import mmcv
-from os import path as osp
-from mmdet.datasets import DATASETS
-import torch
-import numpy as np
 from nuscenes.eval.common.utils import quaternion_yaw, Quaternion
-from .nuscnes_eval import NuScenesEval_custom
-from projects.mmdet3d_plugin.models.utils.visual import save_tensor
-from mmcv.parallel import DataContainer as DC
-import random
 from nuscenes.utils.geometry_utils import transform_matrix
+from tqdm import tqdm
+
 from .occ_metrics import Metric_mIoU, Metric_FScore
 
 
@@ -206,12 +205,12 @@ class NuSceneOcc(NuScenesDataset):
             return data
 
     def evaluate_miou(self, occ_results, runner=None, show_dir=None, **eval_kwargs):
-        if show_dir is not None:
-            if not os.path.exists(show_dir):
-                os.mkdir(show_dir)
-            print('\nSaving output and gt in {} for visualization.'.format(show_dir))
-            begin=eval_kwargs.get('begin',None)
-            end=eval_kwargs.get('end',None)
+        # if show_dir is not None:
+        #     if not os.path.exists(show_dir):
+        #         os.mkdir(show_dir)
+        #     print('\nSaving output and gt in {} for visualization.'.format(show_dir))
+        #     begin = eval_kwargs.get('begin', None)
+        #     end = eval_kwargs.get('end', None)
         self.occ_eval_metrics = Metric_mIoU(
             num_classes=18,
             use_lidar_mask=False,
@@ -232,17 +231,16 @@ class NuSceneOcc(NuScenesDataset):
             info = self.data_infos[index]
 
             occ_gt = np.load(os.path.join(self.data_root, info['occ_gt_path']))
-            if show_dir is not None:
-                if begin is not None and end is not None:
-                    if index>= begin and index<end:
-                        sample_token = info['token']
-                        save_path = os.path.join(show_dir,str(index).zfill(4))
-                        np.savez_compressed(save_path, pred=occ_pred, gt=occ_gt, sample_token=sample_token)
-                else:
-                    sample_token=info['token']
-                    save_path=os.path.join(show_dir,str(index).zfill(4))
-                    np.savez_compressed(save_path,pred=occ_pred,gt=occ_gt,sample_token=sample_token)
-
+            # if show_dir is not None:
+            #     if begin is not None and end is not None:
+            #         if index >= begin and index < end:
+            #             sample_token = info['token']
+            #             save_path = os.path.join(show_dir, str(index).zfill(4))
+            #             np.savez_compressed(save_path, pred=occ_pred, gt=occ_gt, sample_token=sample_token)
+            #     else:
+            #         sample_token = info['token']
+            #         save_path = os.path.join(show_dir, str(index).zfill(4))
+            #         np.savez_compressed(save_path, pred=occ_pred, gt=occ_gt, sample_token=sample_token)
 
             gt_semantics = occ_gt['semantics']
             mask_lidar = occ_gt['mask_lidar'].astype(bool)
@@ -252,20 +250,24 @@ class NuSceneOcc(NuScenesDataset):
             if self.eval_fscore:
                 self.fscore_eval_metrics.add_batch(occ_pred, gt_semantics, mask_lidar, mask_camera)
 
-        self.occ_eval_metrics.count_miou()
+        res = self.occ_eval_metrics.count_miou()
         if self.eval_fscore:
             self.fscore_eval_metrics.count_fscore()
 
-    def format_results(self, occ_results,submission_prefix,**kwargs):
+        mmcv.mkdir_or_exist(eval_kwargs['jsonfile_prefix'])
+        res.update(dict(epoch=eval_kwargs['epoch']))
+        with open(osp.join(eval_kwargs['jsonfile_prefix'], 'results.csv'), 'a', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(list(res.keys()))
+            writer.writerow(list(res.values()))
+
+    def format_results(self, occ_results, submission_prefix, **kwargs):
         if submission_prefix is not None:
             mmcv.mkdir_or_exist(submission_prefix)
 
         for index, occ_pred in enumerate(tqdm(occ_results)):
             info = self.data_infos[index]
             sample_token = info['token']
-            save_path=os.path.join(submission_prefix,'{}.npz'.format(sample_token))
-            np.savez_compressed(save_path,occ_pred.astype(np.uint8))
+            save_path = os.path.join(submission_prefix, '{}.npz'.format(sample_token))
+            np.savez_compressed(save_path, occ_pred.astype(np.uint8))
         print('\nFinished.')
-
-
-
