@@ -4,11 +4,12 @@
 #  Modified by Xiaoyu Tian
 # ---------------------------------------------
 
-import torch
+from mmcv.cnn import ConvModule
 from mmcv.runner import BaseModule, force_fp32
 from mmcv.runner import auto_fp16
 from mmdet.models import HEADS
 from mmdet.models.builder import build_loss
+from torch import nn
 
 
 @HEADS.register_module()
@@ -25,8 +26,15 @@ class OccHead(BaseModule):
     """
 
     def __init__(self,
+                 bev_h=200,
+                 bev_w=200,
                  loss_occ=None,
                  use_mask=False,
+                 num_classes=18,
+                 pillar_h=16,
+                 act_cfg=dict(type='ReLU', inplace=True),
+                 norm_cfg=dict(type='BN', ),
+                 norm_cfg_3d=dict(type='BN3d', ),
                  **kwargs):
 
         super(OccHead, self).__init__()
@@ -37,77 +45,94 @@ class OccHead(BaseModule):
 
         self.loss_occ = build_loss(loss_occ)
 
-    @auto_fp16(apply_to=('mlvl_feats'))
-    def forward(self, mlvl_feats, img_metas, prev_bev=None, only_bev=False, test=False):
-        """Forward function.
-        Args:
-            mlvl_feats (tuple[Tensor]): Features from the upstream
-                network, each is a 5D-tensor with shape
-                (B, N, C, H, W).
-            prev_bev: previous bev featues
-            only_bev: only compute BEV features with encoder.
-        Returns:
-            all_cls_scores (Tensor): Outputs from the classification head, \
-                shape [nb_dec, bs, num_query, cls_out_channels]. Note \
-                cls_out_channels should includes background.
-            all_bbox_preds (Tensor): Sigmoid outputs from the regression \
-                head with normalized coordinate format (cx, cy, w, l, cz, h, theta, vx, vy). \
-                Shape [nb_dec, bs, num_query, 9].
-        """
-        bs, num_cam, _, _, _ = mlvl_feats[0].shape
-        dtype = mlvl_feats[0].dtype
-        object_query_embeds = None
-        bev_queries = self.bev_embedding.weight.to(dtype)
+        self.bev_h, self.bev_w = bev_h, bev_w
 
-        bev_mask = torch.zeros((bs, self.bev_h, self.bev_w),
-                               device=bev_queries.device).to(dtype)
-        bev_pos = self.positional_encoding(bev_mask).to(dtype)
+        if not use_3d:
+            if use_conv:
+                use_bias = norm_cfg is None
+                self.decoder = nn.Sequential(
+                    ConvModule(
+                        self.embed_dims,
+                        self.embed_dims,
+                        kernel_size=3,
+                        stride=1,
+                        padding=1,
+                        bias=use_bias,
+                        norm_cfg=norm_cfg,
+                        act_cfg=act_cfg),
+                    ConvModule(
+                        self.embed_dims,
+                        self.embed_dims * 2,
+                        kernel_size=3,
+                        stride=1,
+                        padding=1,
+                        bias=use_bias,
+                        norm_cfg=norm_cfg,
+                        act_cfg=act_cfg), )
 
-        if only_bev:  # only use encoder to obtain BEV features, TODO: refine the workaround
-            return self.transformer.get_bev_features(
-                mlvl_feats,
-                bev_queries,
-                self.bev_h,
-                self.bev_w,
-                grid_length=(self.real_h / self.bev_h,
-                             self.real_w / self.bev_w),
-                bev_pos=bev_pos,
-                img_metas=img_metas,
-                prev_bev=prev_bev,
-            )
+            else:
+                self.decoder = nn.Sequential(
+                    nn.Linear(self.embed_dims, self.embed_dims * 2),
+                    nn.Softplus(),
+                    nn.Linear(self.embed_dims * 2, self.embed_dims * 2),
+                )
         else:
-            outputs = self.transformer(  # TransformerOcc
-                mlvl_feats,
-                bev_queries,
-                object_query_embeds,
-                self.bev_h,
-                self.bev_w,
-                grid_length=(self.real_h / self.bev_h,
-                             self.real_w / self.bev_w),
-                bev_pos=bev_pos,
-                reg_branches=None,  # noqa:E501
-                cls_branches=None,
-                img_metas=img_metas,
-                prev_bev=prev_bev
-            )
-        bev_embed, occ_outs = outputs
+            use_bias_3d = norm_cfg_3d is None
 
-        outs = {
-            'bev_embed': bev_embed,
-            'occ': occ_outs,
-        }
+            self.middle_dims = self.embed_dims // pillar_h
+            self.decoder = nn.Sequential(
+                ConvModule(
+                    self.middle_dims,
+                    self.out_dim,
+                    kernel_size=3,
+                    stride=1,
+                    padding=1,
+                    bias=use_bias_3d,
+                    conv_cfg=dict(type='Conv3d'),
+                    norm_cfg=norm_cfg_3d,
+                    act_cfg=act_cfg),
+                ConvModule(
+                    self.out_dim,
+                    self.out_dim,
+                    kernel_size=3,
+                    stride=1,
+                    padding=1,
+                    bias=use_bias_3d,
+                    conv_cfg=dict(type='Conv3d'),
+                    norm_cfg=norm_cfg_3d,
+                    act_cfg=act_cfg),
+            )
+        self.predicter = nn.Sequential(
+            nn.Linear(self.out_dim, self.out_dim * 2),
+            nn.Softplus(),
+            nn.Linear(self.out_dim * 2, num_classes),
+        )
+
+    @auto_fp16(apply_to=('mlvl_feats'))
+    def forward(self, bev_embed):
+        bev_embed = bev_embed.permute(0, 2, 1).view(bs, -1, self.bev_h, self.bev_w)
+        if self.use_3d:
+            outputs = self.decoder(bev_embed.view(bs, -1, self.pillar_h, self.bev_h, self.bev_w))
+            outputs = outputs.permute(0, 4, 3, 2, 1)
+
+        elif self.use_conv:
+
+            outputs = self.decoder(bev_embed)
+            outputs = outputs.view(bs, -1, self.pillar_h, bev_h, bev_w).permute(0, 3, 4, 2, 1)
+        else:
+            outputs = self.decoder(bev_embed.permute(0, 2, 3, 1))
+            outputs = outputs.view(bs, bev_h, bev_w, self.pillar_h, self.out_dim)
+        outputs = self.predicter(outputs)
+        # print('outputs',type(outputs))
+        return bev_embed, outputs
 
         return outs
 
     @force_fp32(apply_to=('preds_dicts'))
     def loss(self,
-             # gt_bboxes_list,
-             # gt_labels_list,
              voxel_semantics,
              mask_camera,
-             preds_dicts,
-             gt_bboxes_ignore=None,
-             img_metas=None):
+             preds_dicts):
 
         loss_dict = dict()
         occ = preds_dicts['occ']

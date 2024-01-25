@@ -47,7 +47,7 @@ class TransformerOcc(BaseModule):
                  use_can_bus=True,
                  can_bus_norm=True,
                  use_cams_embeds=True,
-                 use_3d=False,
+                 use_3d=False,  # True
                  use_conv=False,
                  rotate_center=[100, 100],
                  num_classes=18,
