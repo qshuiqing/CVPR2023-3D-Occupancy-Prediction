@@ -144,7 +144,7 @@ def vis_nuscene():
     vis_voxel_size = 0.4
 
     # If you want to vis the data file provided in GitHub, use the code below
-    file = "data/29796060110c4163b07f06eff4af0753/labels.npz" # change this to the file path on your machine
+    file = "data/occ3d-nus/gts/scene-1077/29796060110c4163b07f06eff4af0753/labels.npz" # change this to the file path on your machine
     data = np.load(file)
     semantics, mask_lidar, mask_camera = data['semantics'], data['mask_lidar'], data['mask_camera']
 
