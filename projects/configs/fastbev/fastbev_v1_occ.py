@@ -52,7 +52,7 @@ n_times = 4
 
 model = dict(
     type='FastBEV',
-    style='v4',  # img/bev ms
+    backproject='mean',
     backbone=dict(
         type='ResNet',
         depth=50,
@@ -79,7 +79,6 @@ model = dict(
         stride=1,  # TODO 2
         fuse=dict(in_channels=64 * n_times * 6 * 3, out_channels=_dim_),  # c*seq*h*fpn_lvl
         norm_cfg=dict(type='SyncBN', requires_grad=True)),
-    seg_head=None,
     bbox_head=dict(
         type='OccHead',
         num_classes=18,
@@ -113,13 +112,13 @@ file_client_args = dict(backend='disk')
 occ_gt_data_root = 'data/occ3d-nus'
 
 train_pipeline = [
-    dict(type='LoadMultiViewImageFromFiles', to_float32=True),
+    dict(type='LoadMultiViewImageFromFiles', to_float32=False),
     dict(type='LoadOccGTFromFile', data_root=occ_gt_data_root),
     dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True, with_attr_label=False),
     dict(type='ObjectRangeFilter', point_cloud_range=point_cloud_range),
     dict(type='ObjectNameFilter', classes=class_names),
     dict(type='KittiSetOrigin', point_cloud_range=point_cloud_range),
-    dict(type='RandomAugImageMultiViewImage', data_config=data_config),
+    dict(type='RandomAugImageMultiViewImage', data_config=data_config, is_debug=True, is_exit=False),
     dict(type='NormalizeMultiviewImage', **img_norm_cfg),
     dict(type='DefaultFormatBundle3D', class_names=class_names),
     dict(type='CustomCollect3D', keys=['img', 'voxel_semantics', 'mask_lidar', 'mask_camera'])
@@ -146,8 +145,8 @@ test_pipeline = [
 ]
 
 data = dict(
-    samples_per_gpu=1,
-    workers_per_gpu=4,
+    samples_per_gpu=2,
+    workers_per_gpu=1,
     train=dict(
         type=dataset_type,
         data_root=data_root,
@@ -223,7 +222,7 @@ lr_config = dict(
 )
 
 total_epochs = 24
-evaluation = dict(interval=24, pipeline=test_pipeline)
+evaluation = dict(interval=1, pipeline=test_pipeline)
 
 runner = dict(type='EpochBasedRunner', max_epochs=total_epochs)
 load_from = 'ckpts/cascade_mask_rcnn_r50_fpn_coco-mstrain_3x_20e_nuim_bbox_mAP_0.5400_segm_mAP_0.4300.pth'
