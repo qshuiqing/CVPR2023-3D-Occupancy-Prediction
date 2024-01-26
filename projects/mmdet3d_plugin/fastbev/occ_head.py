@@ -102,7 +102,7 @@ class OccHead(BaseModule):
 
         # (1,16,16,200,200)->(1,32,16,200,200)
         outputs = self.decoder(bev_embed.view(bs, -1, self.pillar_h, dx, dy))
-        outputs = outputs.permute(0, 3, 4, 2, 1)  # () - bs,w,h,z,c
+        outputs = outputs.permute(0, 3, 4, 2, 1)  # (1,200,200,16,32) - bs,dx,dy,dz,c
 
         # (1,200,200,16,18)
         outputs = self.predicter(outputs)

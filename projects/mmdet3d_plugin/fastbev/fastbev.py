@@ -1,17 +1,14 @@
 # -*- coding: utf-8 -*-
 import copy
 import math
-import os
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.checkpoint as cp
-from mmcv.runner import get_dist_info
 from mmdet.models import DETECTORS, build_backbone, build_head, build_neck
 from mmdet.models.detectors import BaseDetector
 from mmdet3d.core import bbox3d2result
-from mmseg.models import build_head as build_seg_head
 from mmseg.ops import resize
 
 
@@ -24,10 +21,8 @@ class FastBEV(BaseDetector):
             neck_fuse,
             neck_3d,
             bbox_head,
-            seg_head,
             n_voxels,
             voxel_size,
-            bbox_head_2d=None,
             train_cfg=None,
             test_cfg=None,
             train_cfg_2d=None,
@@ -40,7 +35,6 @@ class FastBEV(BaseDetector):
             multi_scale_3d_scaler=None,
             with_cp=False,
             backproject='inplace',
-            style='v4',
     ):
         super().__init__(init_cfg=init_cfg)
         self.backbone = build_backbone(backbone)
@@ -54,13 +48,6 @@ class FastBEV(BaseDetector):
         else:
             self.neck_fuse = nn.Conv2d(neck_fuse["in_channels"], neck_fuse["out_channels"], 3, 1, 1)
 
-        # style
-        # v1: fastbev wo/ ms
-        # v2: fastbev + img ms
-        # v3: fastbev + bev ms
-        # v4: fastbev + img/bev ms
-        self.style = style
-        assert self.style in ['v1', 'v2', 'v3', 'v4'], self.style
         self.multi_scale_id = multi_scale_id
         self.multi_scale_3d_scaler = multi_scale_3d_scaler
 
@@ -72,22 +59,8 @@ class FastBEV(BaseDetector):
         else:
             self.bbox_head = None
 
-        if seg_head is not None:
-            self.seg_head = build_seg_head(seg_head)
-        else:
-            self.seg_head = None
-
-        if bbox_head_2d is not None:
-            bbox_head_2d.update(train_cfg=train_cfg_2d)
-            bbox_head_2d.update(test_cfg=test_cfg_2d)
-            self.bbox_head_2d = build_head(bbox_head_2d)
-        else:
-            self.bbox_head_2d = None
-
         self.n_voxels = n_voxels
         self.voxel_size = voxel_size
-        self.train_cfg = train_cfg
-        self.test_cfg = test_cfg
 
         # test time extrinsic noise
         self.extrinsic_noise = extrinsic_noise
@@ -96,8 +69,8 @@ class FastBEV(BaseDetector):
                 print("### extrnsic noise: {} ###".format(self.extrinsic_noise))
 
         # detach adj feature
-        self.seq_detach = seq_detach
         self.backproject = backproject
+
         # checkpoint
         self.with_cp = with_cp
 
@@ -161,11 +134,6 @@ class FastBEV(BaseDetector):
                 else:
                     mlvl_feats_.append(mlvl_feats[msid])
             mlvl_feats = mlvl_feats_  # (24,64,64/i,176/i),i=1,2,4
-        # v3 bev ms
-        # if isinstance(self.n_voxels, list) and len(mlvl_feats) < len(self.n_voxels):
-        #     pad_feats = len(self.n_voxels) - len(mlvl_feats)
-        #     for _ in range(pad_feats):
-        #         mlvl_feats.append(mlvl_feats[0])
 
         mlvl_volumes = []
         for lvl, mlvl_feat in enumerate(mlvl_feats):  # 3
@@ -190,10 +158,6 @@ class FastBEV(BaseDetector):
 
                     projection = self._compute_projection(  # (6,3,4)
                         img_meta, stride_i, noise=self.extrinsic_noise).to(feat_i.device)
-                    # if self.style in ['v1', 'v2']:
-                    #     # wo/ bev ms
-                    #     n_voxels, voxel_size = self.n_voxels[0], self.voxel_size[0]
-                    # else:
                     # v3/v4 bev ms
                     n_voxels, voxel_size = self.n_voxels[lvl], self.voxel_size[lvl]
                     points = get_points(  # [3, vx, vy, vz]
@@ -219,9 +183,6 @@ class FastBEV(BaseDetector):
 
             mlvl_volumes.append(torch.cat(volume_list, dim=1))  # list([bs,seq*c,vx,vy,vz])
 
-        # if self.style in ['v1', 'v2']:
-        #     mlvl_volumes = torch.cat(mlvl_volumes, dim=1)  # [bs, lvl*seq*c, vx, vy, vz]
-        # else:
         # bev ms: multi-scale bev map (different x/y/z)
         for i in range(len(mlvl_volumes)):  # 3
             mlvl_volume = mlvl_volumes[i]  # (1,256,200,200,6)
@@ -271,10 +232,9 @@ class FastBEV(BaseDetector):
                       mask_camera,  # (1,200,200,16)
                       voxel_semantics,  # (1,200,200,16)
                       **kwargs):
+
         # (1,256,200,200) - bs,c,dx,dy
         feature_bev = self.extract_feat(img, img_metas)
-
-        assert self.bbox_head is not None or self.seg_head is not None
 
         losses = dict()
         if self.bbox_head is not None:
@@ -282,99 +242,12 @@ class FastBEV(BaseDetector):
             loss_occ = self.bbox_head.loss(voxel_semantics, mask_camera, x)
             losses.update(loss_occ)
 
-        # if self.seg_head is not None:
-        #     assert len(gt_bev_seg) == 1
-        #     x_bev = self.seg_head(feature_bev)
-        #     gt_bev = gt_bev_seg[0][None, ...].long()
-        #     loss_seg = self.seg_head.losses(x_bev, gt_bev)
-        #     losses.update(loss_seg)
-
-        # if self.bbox_head_2d is not None:
-        #     gt_bboxes = kwargs["gt_bboxes"][0]
-        #     gt_labels = kwargs["gt_labels"][0]
-        #     assert len(kwargs["gt_bboxes"]) == 1 and len(kwargs["gt_labels"]) == 1
-        #     # hack a img_metas_2d
-        #     img_metas_2d = []
-        #     img_info = img_metas[0]["img_info"]
-        #     for idx, info in enumerate(img_info):
-        #         tmp_dict = dict(
-        #             filename=info["filename"],
-        #             ori_filename=info["filename"].split("/")[-1],
-        #             ori_shape=img_metas[0]["ori_shape"],
-        #             img_shape=img_metas[0]["img_shape"],
-        #             pad_shape=img_metas[0]["pad_shape"],
-        #             scale_factor=img_metas[0]["scale_factor"],
-        #             flip=False,
-        #             flip_direction=None,
-        #         )
-        #         img_metas_2d.append(tmp_dict)
-        #
-        #     rank, world_size = get_dist_info()
-        #     loss_2d = self.bbox_head_2d.forward_train(
-        #         features_2d, img_metas_2d, gt_bboxes, gt_labels
-        #     )
-        #     losses.update(loss_2d)
-
         return losses
 
     def forward_test(self, img, img_metas, **kwargs):
         if not self.test_cfg.get('use_tta', False):
             return self.simple_test(img, img_metas)
         return self.aug_test(img, img_metas)
-
-    def onnx_export_2d(self, img, img_metas):
-        """
-        input: 6, 3, 544, 960
-        output: 6, 64, 136, 240
-        """
-        x = self.backbone(img)
-        c1, c2, c3, c4 = self.neck(x)
-        c2 = resize(
-            c2, size=c1.size()[2:], mode="bilinear", align_corners=False
-        )  # [6, 64, 232, 400]
-        c3 = resize(
-            c3, size=c1.size()[2:], mode="bilinear", align_corners=False
-        )  # [6, 64, 232, 400]
-        c4 = resize(
-            c4, size=c1.size()[2:], mode="bilinear", align_corners=False
-        )  # [6, 64, 232, 400]
-        x = torch.cat([c1, c2, c3, c4], dim=1)
-        x = self.neck_fuse(x)
-
-        if bool(os.getenv("DEPLOY", False)):
-            x = x.permute(0, 2, 3, 1)
-            return x
-
-        return x
-
-    def onnx_export_3d(self, x, _):
-        # x: [6, 200, 100, 3, 256]
-        # if bool(os.getenv("DEPLOY_DEBUG", False)):
-        #     x = x.sum(dim=0, keepdim=True)
-        #     return [x]
-        if self.style == "v1":
-            x = x.sum(dim=0, keepdim=True)  # [1, 200, 100, 3, 256]
-            x = self.neck_3d(x)  # [[1, 256, 100, 50], ]
-        elif self.style == "v2":
-            x = self.neck_3d(x)  # [6, 256, 100, 50]
-            x = [x[0].sum(dim=0, keepdim=True)]  # [1, 256, 100, 50]
-        elif self.style == "v3":
-            x = self.neck_3d(x)  # [1, 256, 100, 50]
-        else:
-            raise NotImplementedError
-
-        if self.bbox_head is not None:
-            cls_score, bbox_pred, dir_cls_preds = self.bbox_head(x)
-            cls_score = [item.sigmoid() for item in cls_score]
-
-        if os.getenv("DEPLOY", False):
-            if dir_cls_preds is None:
-                x = [cls_score, bbox_pred]
-            else:
-                x = [cls_score, bbox_pred, dir_cls_preds]
-            return x
-
-        return x
 
     def simple_test(self, img, img_metas):
         bbox_results = []
