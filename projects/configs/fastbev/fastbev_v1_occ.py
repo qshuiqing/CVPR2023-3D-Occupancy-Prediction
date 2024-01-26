@@ -87,6 +87,7 @@ model = dict(
         use_mask=True,
         use_3d=True,
         use_conv=False,
+        norm_cfg_3d=dict(type='BN3d', ),
         loss_occ=dict(
             type='CrossEntropyLoss',
             use_sigmoid=False,

@@ -58,61 +58,30 @@ class OccHead(BaseModule):
         self.use_3d = use_3d
         self.use_conv = use_conv
 
-        if not use_3d:
-            if use_conv:
-                use_bias = norm_cfg is None
-                self.decoder = nn.Sequential(
-                    ConvModule(
-                        self.embed_dims,
-                        self.embed_dims,
-                        kernel_size=3,
-                        stride=1,
-                        padding=1,
-                        bias=use_bias,
-                        norm_cfg=norm_cfg,
-                        act_cfg=act_cfg),
-                    ConvModule(
-                        self.embed_dims,
-                        self.embed_dims * 2,
-                        kernel_size=3,
-                        stride=1,
-                        padding=1,
-                        bias=use_bias,
-                        norm_cfg=norm_cfg,
-                        act_cfg=act_cfg), )
-
-            else:
-                self.decoder = nn.Sequential(
-                    nn.Linear(self.embed_dims, self.embed_dims * 2),
-                    nn.Softplus(),
-                    nn.Linear(self.embed_dims * 2, self.embed_dims * 2),
-                )
-        else:
-            use_bias_3d = norm_cfg_3d is None
-
-            self.middle_dims = self.embed_dims // pillar_h
-            self.decoder = nn.Sequential(
-                ConvModule(
-                    self.middle_dims,
-                    self.out_dim,
-                    kernel_size=3,
-                    stride=1,
-                    padding=1,
-                    bias=use_bias_3d,
-                    conv_cfg=dict(type='Conv3d'),
-                    norm_cfg=norm_cfg_3d,
-                    act_cfg=act_cfg),
-                ConvModule(
-                    self.out_dim,
-                    self.out_dim,
-                    kernel_size=3,
-                    stride=1,
-                    padding=1,
-                    bias=use_bias_3d,
-                    conv_cfg=dict(type='Conv3d'),
-                    norm_cfg=norm_cfg_3d,
-                    act_cfg=act_cfg),
-            )
+        use_bias_3d = norm_cfg_3d is None
+        self.middle_dims = self.embed_dims // pillar_h
+        self.decoder = nn.Sequential(
+            ConvModule(
+                self.middle_dims,
+                self.out_dim,
+                kernel_size=3,
+                stride=1,
+                padding=1,
+                bias=use_bias_3d,
+                conv_cfg=dict(type='Conv3d'),
+                norm_cfg=norm_cfg_3d,
+                act_cfg=act_cfg),
+            ConvModule(
+                self.out_dim,
+                self.out_dim,
+                kernel_size=3,
+                stride=1,
+                padding=1,
+                bias=use_bias_3d,
+                conv_cfg=dict(type='Conv3d'),
+                norm_cfg=norm_cfg_3d,
+                act_cfg=act_cfg),
+        )
         self.predicter = nn.Sequential(
             nn.Linear(self.out_dim, self.out_dim * 2),
             nn.Softplus(),
@@ -130,20 +99,14 @@ class OccHead(BaseModule):
 
         """
         bs, c, dx, dy = bev_embed.shape
-        if self.use_3d:
-            # (1,16,16,200,200)->(1,32,16,200,200)
-            outputs = self.decoder(bev_embed.view(bs, -1, self.pillar_h, dx, dy))
-            outputs = outputs.permute(0, 3, 4, 2, 1)  # () - bs,w,h,z,c
 
-        elif self.use_conv:  # False
+        # (1,16,16,200,200)->(1,32,16,200,200)
+        outputs = self.decoder(bev_embed.view(bs, -1, self.pillar_h, dx, dy))
+        outputs = outputs.permute(0, 3, 4, 2, 1)  # () - bs,w,h,z,c
 
-            outputs = self.decoder(bev_embed)
-            outputs = outputs.view(bs, -1, self.pillar_h, dx, dy).permute(0, 3, 4, 2, 1)
-        else:
-            outputs = self.decoder(bev_embed.permute(0, 2, 3, 1))
-            outputs = outputs.view(bs, dx, dy, self.pillar_h, self.out_dim)
-        outputs = self.predicter(outputs)
         # (1,200,200,16,18)
+        outputs = self.predicter(outputs)
+
         return outputs
 
     @force_fp32(apply_to=('preds_dicts'))
