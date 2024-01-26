@@ -50,7 +50,8 @@ class ResModule2D(nn.Module):
 
 @NECKS.register_module()
 class M2BevNeck(nn.Module):
-    """Neck for M2BEV.
+    """
+    Neck for M2BEV.
     """
 
     def __init__(self,
@@ -59,15 +60,11 @@ class M2BevNeck(nn.Module):
                  num_layers=2,
                  norm_cfg=dict(type='BN2d'),
                  stride=2,
-                 is_transpose=True,
                  fuse=None,
                  with_cp=False):
         super().__init__()
 
-        self.is_transpose = is_transpose
         self.with_cp = with_cp
-        for i in range(3):
-            print('neck transpose: {}'.format(is_transpose))
 
         if fuse is not None:
             self.fuse = nn.Conv2d(fuse["in_channels"], fuse["out_channels"], kernel_size=1)
@@ -129,8 +126,4 @@ class M2BevNeck(nn.Module):
         else:
             x = _inner_forward(x)
 
-        if self.is_transpose:
-            # Anchor3DHead axis order is (y, x).
-            return [x.transpose(-1, -2)]
-        else:
-            return [x]
+        return x

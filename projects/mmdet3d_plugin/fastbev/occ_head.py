@@ -32,6 +32,10 @@ class OccHead(BaseModule):
                  use_mask=False,
                  num_classes=18,
                  pillar_h=16,
+                 use_3d=False,
+                 use_conv=False,
+                 embed_dims=256,
+                 out_dim=32,
                  act_cfg=dict(type='ReLU', inplace=True),
                  norm_cfg=dict(type='BN', ),
                  norm_cfg_3d=dict(type='BN3d', ),
@@ -40,12 +44,19 @@ class OccHead(BaseModule):
         super(OccHead, self).__init__()
 
         self.fp16_enabled = False
-        self.num_classes = kwargs['num_classes']
+        self.num_classes = num_classes
         self.use_mask = use_mask
 
         self.loss_occ = build_loss(loss_occ)
 
         self.bev_h, self.bev_w = bev_h, bev_w
+
+        self.embed_dims = embed_dims
+        self.out_dim = out_dim
+
+        self.pillar_h = pillar_h
+        self.use_3d = use_3d
+        self.use_conv = use_conv
 
         if not use_3d:
             if use_conv:
@@ -108,25 +119,32 @@ class OccHead(BaseModule):
             nn.Linear(self.out_dim * 2, num_classes),
         )
 
-    @auto_fp16(apply_to=('mlvl_feats'))
+    @auto_fp16(apply_to='bev_embed')
     def forward(self, bev_embed):
-        bev_embed = bev_embed.permute(0, 2, 1).view(bs, -1, self.bev_h, self.bev_w)
-        if self.use_3d:
-            outputs = self.decoder(bev_embed.view(bs, -1, self.pillar_h, self.bev_h, self.bev_w))
-            outputs = outputs.permute(0, 4, 3, 2, 1)
+        """
 
-        elif self.use_conv:
+        Args:
+            bev_embed: (1,256,100,100) - bs,c,dx,dy
+
+        Returns:
+
+        """
+        bs, c, dx, dy = bev_embed.shape
+        if self.use_3d:
+            # (1,16,16,200,200)->(1,32,16,200,200)
+            outputs = self.decoder(bev_embed.view(bs, -1, self.pillar_h, dx, dy))
+            outputs = outputs.permute(0, 3, 4, 2, 1)  # () - bs,w,h,z,c
+
+        elif self.use_conv:  # False
 
             outputs = self.decoder(bev_embed)
-            outputs = outputs.view(bs, -1, self.pillar_h, bev_h, bev_w).permute(0, 3, 4, 2, 1)
+            outputs = outputs.view(bs, -1, self.pillar_h, dx, dy).permute(0, 3, 4, 2, 1)
         else:
             outputs = self.decoder(bev_embed.permute(0, 2, 3, 1))
-            outputs = outputs.view(bs, bev_h, bev_w, self.pillar_h, self.out_dim)
+            outputs = outputs.view(bs, dx, dy, self.pillar_h, self.out_dim)
         outputs = self.predicter(outputs)
-        # print('outputs',type(outputs))
-        return bev_embed, outputs
-
-        return outs
+        # (1,200,200,16,18)
+        return outputs
 
     @force_fp32(apply_to=('preds_dicts'))
     def loss(self,
@@ -135,7 +153,7 @@ class OccHead(BaseModule):
              preds_dicts):
 
         loss_dict = dict()
-        occ = preds_dicts['occ']
+        occ = preds_dicts
         assert voxel_semantics.min() >= 0 and voxel_semantics.max() <= 17
         losses = self.loss_single(voxel_semantics, mask_camera, occ)
         loss_dict['loss_occ'] = losses
@@ -156,18 +174,14 @@ class OccHead(BaseModule):
         return loss_occ
 
     @force_fp32(apply_to=('preds'))
-    def get_occ(self, preds_dicts, img_metas, rescale=False):
-        """Generate bboxes from bbox head predictions.
+    def get_occ(self, preds):
+        """Generate occupancy from occ head predictions.
         Args:
-            predss : occ results.
-            img_metas (list[dict]): Point cloud and image's meta info.
+            preds_dicts : occ results.
         Returns:
-            list[dict]: Decoded bbox, scores and labels after nms.
+            list[dict]: labels.
         """
-        # return self.transformer.get_occ(
-        #     preds_dicts, img_metas, rescale=rescale)
-        # print(img_metas[0].keys())
-        occ_out = preds_dicts['occ']
+        occ_out = preds['occ']
         occ_score = occ_out.softmax(-1)
         occ_score = occ_score.argmax(-1)
 

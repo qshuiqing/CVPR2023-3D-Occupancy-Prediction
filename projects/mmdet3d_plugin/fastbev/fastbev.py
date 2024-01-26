@@ -115,38 +115,30 @@ class FastBEV(BaseDetector):
                 projection.append(intrinsic @ extrinsic[:3])
         return torch.stack(projection)
 
-    def extract_feat(self, img, img_metas, mode):
-        batch_size = img.shape[0]
-        img = img.reshape(
-            [-1] + list(img.shape)[2:]
-        )  # [1, 6, 3, 928, 1600] -> [6, 3, 928, 1600]
-        x = self.backbone(
-            img
-        )  # [6, 256, 232, 400]; [6, 512, 116, 200]; [6, 1024, 58, 100]; [6, 2048, 29, 50]
+    def extract_feat(self, img, img_metas):
 
-        # use for vovnet
-        if isinstance(x, dict):
-            tmp = []
-            for k in x.keys():
-                tmp.append(x[k])
-            x = tmp
+        batch_size = img.shape[0]  # 1
+        # (1,24,3,256,704)->(24,3,256,704)
+        img = img.reshape([-1] + list(img.shape)[2:])
+        # (24,256*i,64/i,176/i) i=1,2,4,8
+        x = self.backbone(img)
 
         # fuse features
         def _inner_forward(x):
             out = self.neck(x)
-            return out  # [6, 64, 232, 400]; [6, 64, 116, 200]; [6, 64, 58, 100]; [6, 64, 29, 50])
+            return out
 
         if self.with_cp and x.requires_grad:
             mlvl_feats = cp.checkpoint(_inner_forward, x)
-        else:
+        else:  # (24,64,64/i,176/i),i=1,2,4,8
             mlvl_feats = _inner_forward(x)
         mlvl_feats = list(mlvl_feats)
 
-        features_2d = None
-        if self.bbox_head_2d:
-            features_2d = mlvl_feats
+        # features_2d = None
+        # if self.bbox_head_2d:
+        #     features_2d = mlvl_feats
 
-        if self.multi_scale_id is not None:
+        if self.multi_scale_id is not None:  # [0,1,2]
             mlvl_feats_ = []
             for msid in self.multi_scale_id:
                 # fpn output fusion
@@ -168,15 +160,15 @@ class FastBEV(BaseDetector):
                     mlvl_feats_.append(fuse_feats)
                 else:
                     mlvl_feats_.append(mlvl_feats[msid])
-            mlvl_feats = mlvl_feats_
+            mlvl_feats = mlvl_feats_  # (24,64,64/i,176/i),i=1,2,4
         # v3 bev ms
-        if isinstance(self.n_voxels, list) and len(mlvl_feats) < len(self.n_voxels):
-            pad_feats = len(self.n_voxels) - len(mlvl_feats)
-            for _ in range(pad_feats):
-                mlvl_feats.append(mlvl_feats[0])
+        # if isinstance(self.n_voxels, list) and len(mlvl_feats) < len(self.n_voxels):
+        #     pad_feats = len(self.n_voxels) - len(mlvl_feats)
+        #     for _ in range(pad_feats):
+        #         mlvl_feats.append(mlvl_feats[0])
 
         mlvl_volumes = []
-        for lvl, mlvl_feat in enumerate(mlvl_feats):
+        for lvl, mlvl_feat in enumerate(mlvl_feats):  # 3
             stride_i = math.ceil(img.shape[-1] / mlvl_feat.shape[-1])  # P4 880 / 32 = 27.5
             # [bs*seq*nv, c, h, w] -> [bs, seq*nv, c, h, w]
             mlvl_feat = mlvl_feat.reshape([batch_size, -1] + list(mlvl_feat.shape[1:]))
@@ -184,7 +176,7 @@ class FastBEV(BaseDetector):
             mlvl_feat_split = torch.split(mlvl_feat, 6, dim=1)
 
             volume_list = []
-            for seq_id in range(len(mlvl_feat_split)):
+            for seq_id in range(len(mlvl_feat_split)):  # 4
                 volumes = []
                 for batch_id, seq_img_meta in enumerate(img_metas):
                     feat_i = mlvl_feat_split[seq_id][batch_id]  # [nv, c, h, w]
@@ -198,12 +190,12 @@ class FastBEV(BaseDetector):
 
                     projection = self._compute_projection(  # (6,3,4)
                         img_meta, stride_i, noise=self.extrinsic_noise).to(feat_i.device)
-                    if self.style in ['v1', 'v2']:
-                        # wo/ bev ms
-                        n_voxels, voxel_size = self.n_voxels[0], self.voxel_size[0]
-                    else:
-                        # v3/v4 bev ms
-                        n_voxels, voxel_size = self.n_voxels[lvl], self.voxel_size[lvl]
+                    # if self.style in ['v1', 'v2']:
+                    #     # wo/ bev ms
+                    #     n_voxels, voxel_size = self.n_voxels[0], self.voxel_size[0]
+                    # else:
+                    # v3/v4 bev ms
+                    n_voxels, voxel_size = self.n_voxels[lvl], self.voxel_size[lvl]
                     points = get_points(  # [3, vx, vy, vz]
                         n_voxels=torch.tensor(n_voxels),
                         voxel_size=torch.tensor(voxel_size),
@@ -225,39 +217,39 @@ class FastBEV(BaseDetector):
                     volumes.append(volume)
                 volume_list.append(torch.stack(volumes))  # list([bs, c, vx, vy, vz])
 
-            mlvl_volumes.append(torch.cat(volume_list, dim=1))  # list([bs, seq*c, vx, vy, vz])
+            mlvl_volumes.append(torch.cat(volume_list, dim=1))  # list([bs,seq*c,vx,vy,vz])
 
-        if self.style in ['v1', 'v2']:
-            mlvl_volumes = torch.cat(mlvl_volumes, dim=1)  # [bs, lvl*seq*c, vx, vy, vz]
-        else:
-            # bev ms: multi-scale bev map (different x/y/z)
-            for i in range(len(mlvl_volumes)):
-                mlvl_volume = mlvl_volumes[i]
-                bs, c, x, y, z = mlvl_volume.shape
-                # collapse h, [bs, seq*c, vx, vy, vz] -> [bs, seq*c*vz, vx, vy]
-                mlvl_volume = mlvl_volume.permute(0, 2, 3, 4, 1).reshape(bs, x, y, z * c).permute(0, 3, 1, 2)
+        # if self.style in ['v1', 'v2']:
+        #     mlvl_volumes = torch.cat(mlvl_volumes, dim=1)  # [bs, lvl*seq*c, vx, vy, vz]
+        # else:
+        # bev ms: multi-scale bev map (different x/y/z)
+        for i in range(len(mlvl_volumes)):  # 3
+            mlvl_volume = mlvl_volumes[i]  # (1,256,200,200,6)
+            bs, c, x, y, z = mlvl_volume.shape
+            # collapse h, [bs, seq*c, vx, vy, vz] -> [bs,seq*c*vz,vx,vy]
+            mlvl_volume = mlvl_volume.permute(0, 2, 3, 4, 1).reshape(bs, x, y, z * c).permute(0, 3, 1, 2)
 
-                # different x/y, [bs, seq*c*vz, vx, vy] -> [bs, seq*c*vz, vx', vy']
-                if self.multi_scale_3d_scaler == 'pool' and i != (len(mlvl_volumes) - 1):
-                    # pooling to bottom level
-                    mlvl_volume = F.adaptive_avg_pool2d(mlvl_volume, mlvl_volumes[-1].size()[2:4])
-                elif self.multi_scale_3d_scaler == 'upsample' and i != 0:
-                    # upsampling to top level 
-                    mlvl_volume = resize(
-                        mlvl_volume,
-                        mlvl_volumes[0].size()[2:4],
-                        mode='bilinear',
-                        align_corners=False)
-                else:
-                    # same x/y
-                    pass
+            # different x/y, [bs, seq*c*vz, vx, vy] -> [bs, seq*c*vz, vx', vy']
+            if self.multi_scale_3d_scaler == 'pool' and i != (len(mlvl_volumes) - 1):  # False
+                # pooling to bottom level
+                mlvl_volume = F.adaptive_avg_pool2d(mlvl_volume, mlvl_volumes[-1].size()[2:4])
+            elif self.multi_scale_3d_scaler == 'upsample' and i != 0:
+                # upsampling to top level
+                mlvl_volume = resize(
+                    mlvl_volume,
+                    mlvl_volumes[0].size()[2:4],
+                    mode='bilinear',
+                    align_corners=False)
+            else:
+                # same x/y
+                pass
 
-                # [bs, seq*c*vz, vx', vy'] -> [bs, seq*c*vz, vx, vy, 1]
-                mlvl_volume = mlvl_volume.unsqueeze(-1)
-                mlvl_volumes[i] = mlvl_volume
-            mlvl_volumes = torch.cat(mlvl_volumes, dim=1)  # [bs, z1*c1+z2*c2+..., vx, vy, 1]
+            # [bs,seq*c*vz,vx',vy'] -> [bs, seq*c*vz, vx, vy, 1]
+            mlvl_volume = mlvl_volume.unsqueeze(-1)
+            mlvl_volumes[i] = mlvl_volume
+        mlvl_volumes = torch.cat(mlvl_volumes, dim=1)  # [bs,z1*c1+z2*c2+...,vx,vy,1]
 
-        x = mlvl_volumes
+        x = mlvl_volumes  # (1,4608,200,200,1)
 
         def _inner_forward(x):
             # v1/v2: [bs, lvl*seq*c, vx, vy, vz] -> [bs, c', vx, vy]
@@ -270,62 +262,58 @@ class FastBEV(BaseDetector):
         else:
             x = _inner_forward(x)
 
-        return x, None, features_2d
+        return x
 
     def forward_train(self,
-                      img,
+                      img,  # (1,24,3,256,704)
                       img_metas,
-                      mask_lidar,
-                      mask_camera,
-                      voxel_semantics,
-                      gt_bev_seg=None,
+                      mask_lidar,  # (1,200,200,16)
+                      mask_camera,  # (1,200,200,16)
+                      voxel_semantics,  # (1,200,200,16)
                       **kwargs):
-        feature_bev, valids, features_2d = self.extract_feat(img, img_metas, "train")
-        """
-        feature_bev: [(1, 256, 100, 100)]
-        valids: (1, 1, 200, 200, 12)
-        features_2d: [[6, 64, 232, 400], [6, 64, 116, 200], [6, 64, 58, 100], [6, 64, 29, 50]]
-        """
+        # (1,256,200,200) - bs,c,dx,dy
+        feature_bev = self.extract_feat(img, img_metas)
+
         assert self.bbox_head is not None or self.seg_head is not None
 
         losses = dict()
         if self.bbox_head is not None:
             x = self.bbox_head(feature_bev)
-            loss_det = self.bbox_head.loss(voxel_semantics, mask_camera, x)
-            losses.update(loss_det)
+            loss_occ = self.bbox_head.loss(voxel_semantics, mask_camera, x)
+            losses.update(loss_occ)
 
-        if self.seg_head is not None:
-            assert len(gt_bev_seg) == 1
-            x_bev = self.seg_head(feature_bev)
-            gt_bev = gt_bev_seg[0][None, ...].long()
-            loss_seg = self.seg_head.losses(x_bev, gt_bev)
-            losses.update(loss_seg)
+        # if self.seg_head is not None:
+        #     assert len(gt_bev_seg) == 1
+        #     x_bev = self.seg_head(feature_bev)
+        #     gt_bev = gt_bev_seg[0][None, ...].long()
+        #     loss_seg = self.seg_head.losses(x_bev, gt_bev)
+        #     losses.update(loss_seg)
 
-        if self.bbox_head_2d is not None:
-            gt_bboxes = kwargs["gt_bboxes"][0]
-            gt_labels = kwargs["gt_labels"][0]
-            assert len(kwargs["gt_bboxes"]) == 1 and len(kwargs["gt_labels"]) == 1
-            # hack a img_metas_2d
-            img_metas_2d = []
-            img_info = img_metas[0]["img_info"]
-            for idx, info in enumerate(img_info):
-                tmp_dict = dict(
-                    filename=info["filename"],
-                    ori_filename=info["filename"].split("/")[-1],
-                    ori_shape=img_metas[0]["ori_shape"],
-                    img_shape=img_metas[0]["img_shape"],
-                    pad_shape=img_metas[0]["pad_shape"],
-                    scale_factor=img_metas[0]["scale_factor"],
-                    flip=False,
-                    flip_direction=None,
-                )
-                img_metas_2d.append(tmp_dict)
-
-            rank, world_size = get_dist_info()
-            loss_2d = self.bbox_head_2d.forward_train(
-                features_2d, img_metas_2d, gt_bboxes, gt_labels
-            )
-            losses.update(loss_2d)
+        # if self.bbox_head_2d is not None:
+        #     gt_bboxes = kwargs["gt_bboxes"][0]
+        #     gt_labels = kwargs["gt_labels"][0]
+        #     assert len(kwargs["gt_bboxes"]) == 1 and len(kwargs["gt_labels"]) == 1
+        #     # hack a img_metas_2d
+        #     img_metas_2d = []
+        #     img_info = img_metas[0]["img_info"]
+        #     for idx, info in enumerate(img_info):
+        #         tmp_dict = dict(
+        #             filename=info["filename"],
+        #             ori_filename=info["filename"].split("/")[-1],
+        #             ori_shape=img_metas[0]["ori_shape"],
+        #             img_shape=img_metas[0]["img_shape"],
+        #             pad_shape=img_metas[0]["pad_shape"],
+        #             scale_factor=img_metas[0]["scale_factor"],
+        #             flip=False,
+        #             flip_direction=None,
+        #         )
+        #         img_metas_2d.append(tmp_dict)
+        #
+        #     rank, world_size = get_dist_info()
+        #     loss_2d = self.bbox_head_2d.forward_train(
+        #         features_2d, img_metas_2d, gt_bboxes, gt_labels
+        #     )
+        #     losses.update(loss_2d)
 
         return losses
 

@@ -9,7 +9,6 @@ plugin_dir = 'projects/mmdet3d_plugin/'
 # If point cloud range is changed, the models should also change their point
 # cloud range accordingly
 point_cloud_range = [-40, -40, -1.0, 40, 40, 5.4]
-voxel_size = [0.2, 0.2, 8]
 
 img_norm_cfg = dict(mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
 
@@ -43,17 +42,13 @@ input_modality = dict(
     use_camera=True,
     use_radar=False,
     use_map=False,
-    use_external=True)
+    use_external=False)
 
 _dim_ = 256
-_pos_dim_ = _dim_ // 2
-_ffn_dim_ = _dim_ * 2
-_num_levels_ = 4
-bev_h_ = 200
-bev_w_ = 200
-queue_length = 4  # each sequence contains `queue_length` frames.
 
 multi_scale_id = [0, 1, 2]  # 4x/8x/16x
+
+n_times = 4
 
 model = dict(
     type='FastBEV',
@@ -78,12 +73,11 @@ model = dict(
     neck_fuse=dict(in_channels=[256, 192, 128], out_channels=[64, 64, 64]),
     neck_3d=dict(
         type='M2BevNeck',
-        in_channels=256,
-        out_channels=256,
+        in_channels=_dim_,
+        out_channels=_dim_,
         num_layers=6,
-        stride=2,
-        is_transpose=False,
-        fuse=dict(in_channels=64 * 4 * 6 * 3, out_channels=256),  # c*seq*h*fpn_lvl
+        stride=1,  # TODO 2
+        fuse=dict(in_channels=64 * n_times * 6 * 3, out_channels=_dim_),  # c*seq*h*fpn_lvl
         norm_cfg=dict(type='SyncBN', requires_grad=True)),
     seg_head=None,
     bbox_head=dict(
@@ -91,6 +85,8 @@ model = dict(
         num_classes=18,
         in_channels=_dim_,
         use_mask=True,
+        use_3d=True,
+        use_conv=False,
         loss_occ=dict(
             type='CrossEntropyLoss',
             use_sigmoid=False,
@@ -160,10 +156,8 @@ data = dict(
         modality=input_modality,
         test_mode=False,
         use_valid_flag=True,
-        bev_size=(bev_h_, bev_w_),
-        queue_length=queue_length,
         sequential=True,
-        n_times=4,
+        n_times=n_times,
         train_adj_ids=[1, 3, 5],
         max_interval=10,
         min_interval=0,
@@ -177,12 +171,11 @@ data = dict(
              data_root=data_root,
              ann_file=data_root + 'fastocc_infos_temporal_val.pkl',
              pipeline=test_pipeline,
-             bev_size=(bev_h_, bev_w_),
              classes=class_names,
              modality=input_modality,
              samples_per_gpu=1,
              sequential=True,
-             n_times=4,
+             n_times=n_times,
              train_adj_ids=[1, 3, 5],
              max_interval=10,
              min_interval=0,
@@ -193,11 +186,10 @@ data = dict(
               data_root=data_root,
               ann_file=data_root + 'fastocc_infos_temporal_val.pkl',
               pipeline=test_pipeline,
-              bev_size=(bev_h_, bev_w_),
               classes=class_names,
               modality=input_modality,
               sequential=True,
-              n_times=4,
+              n_times=n_times,
               train_adj_ids=[1, 3, 5],
               max_interval=10,
               min_interval=0,
