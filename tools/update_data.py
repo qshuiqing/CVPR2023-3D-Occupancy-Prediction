@@ -26,33 +26,51 @@ def _fill_trainval_infos(occ_path, fastocc_path):
 
         if fastocc_prevs is not None:
             for idx_p in range(len(fastocc_prevs)):  # prev
-                fastocc_prevs[idx_p]['cams']['CAM_FRONT']['data_path'] = fastocc_prevs[idx_p]['cams']['CAM_FRONT'][
+                cams_prev = {
+                    'CAM_FRONT': {'data_path': None},
+                    'CAM_FRONT_RIGHT': {'data_path': None},
+                    'CAM_FRONT_LEFT': {'data_path': None},
+                    'CAM_BACK': {'data_path': None},
+                    'CAM_BACK_LEFT': {'data_path': None},
+                    'CAM_BACK_RIGHT': {'data_path': None},
+                }
+                cams_prev['CAM_FRONT']['data_path'] = fastocc_prevs[idx_p]['cams']['CAM_FRONT']['data_path'].replace(
+                    '/nuscenes/', '/occ3d-nus/')
+                cams_prev['CAM_FRONT_RIGHT']['data_path'] = fastocc_prevs[idx_p]['cams']['CAM_FRONT_RIGHT'][
                     'data_path'].replace('/nuscenes/', '/occ3d-nus/')
-                fastocc_prevs[idx_p]['cams']['CAM_FRONT_RIGHT']['data_path'] = \
-                    fastocc_prevs[idx_p]['cams']['CAM_FRONT_RIGHT']['data_path'].replace('/nuscenes/', '/occ3d-nus/')
-                fastocc_prevs[idx_p]['cams']['CAM_FRONT_LEFT']['data_path'] = \
-                    fastocc_prevs[idx_p]['cams']['CAM_FRONT_LEFT']['data_path'].replace('/nuscenes/', '/occ3d-nus/')
-                fastocc_prevs[idx_p]['cams']['CAM_BACK']['data_path'] = fastocc_prevs[idx_p]['cams']['CAM_BACK'][
+                cams_prev['CAM_FRONT_LEFT']['data_path'] = fastocc_prevs[idx_p]['cams']['CAM_FRONT_LEFT'][
                     'data_path'].replace('/nuscenes/', '/occ3d-nus/')
-                fastocc_prevs[idx_p]['cams']['CAM_BACK_LEFT']['data_path'] = fastocc_prevs[idx_p]['cams']['CAM_BACK_LEFT'][
+                cams_prev['CAM_BACK']['data_path'] = fastocc_prevs[idx_p]['cams']['CAM_BACK']['data_path'].replace(
+                    '/nuscenes/', '/occ3d-nus/')
+                cams_prev['CAM_BACK_LEFT']['data_path'] = fastocc_prevs[idx_p]['cams']['CAM_BACK_LEFT'][
                     'data_path'].replace('/nuscenes/', '/occ3d-nus/')
-                fastocc_prevs[idx_p]['cams']['CAM_BACK_RIGHT']['data_path'] = \
-                    fastocc_prevs[idx_p]['cams']['CAM_BACK_RIGHT']['data_path'].replace('/nuscenes/', '/occ3d-nus/')
+                cams_prev['CAM_BACK_RIGHT']['data_path'] = fastocc_prevs[idx_p]['cams']['CAM_BACK_RIGHT'][
+                    'data_path'].replace('/nuscenes/', '/occ3d-nus/')
+                fastocc_prevs[idx_p]['cams'] = cams_prev
 
         if fastocc_nexts is not None:
             for idx_n in range(len(fastocc_nexts)):  # next
-                fastocc_nexts[idx_n]['cams']['CAM_FRONT']['data_path'] = fastocc_nexts[idx_n]['cams']['CAM_FRONT'][
+                cams_next = {
+                    'CAM_FRONT': {'data_path': None},
+                    'CAM_FRONT_RIGHT': {'data_path': None},
+                    'CAM_FRONT_LEFT': {'data_path': None},
+                    'CAM_BACK': {'data_path': None},
+                    'CAM_BACK_LEFT': {'data_path': None},
+                    'CAM_BACK_RIGHT': {'data_path': None},
+                }
+                cams_next['CAM_FRONT']['data_path'] = fastocc_nexts[idx_n]['cams']['CAM_FRONT']['data_path'].replace(
+                    '/nuscenes/', '/occ3d-nus/')
+                cams_next['CAM_FRONT_RIGHT']['data_path'] = fastocc_nexts[idx_n]['cams']['CAM_FRONT_RIGHT'][
                     'data_path'].replace('/nuscenes/', '/occ3d-nus/')
-                fastocc_nexts[idx_n]['cams']['CAM_FRONT_RIGHT']['data_path'] = \
-                    fastocc_nexts[idx_n]['cams']['CAM_FRONT_RIGHT']['data_path'].replace('/nuscenes/', '/occ3d-nus/')
-                fastocc_nexts[idx_n]['cams']['CAM_FRONT_LEFT']['data_path'] = \
-                    fastocc_nexts[idx_n]['cams']['CAM_FRONT_LEFT']['data_path'].replace('/nuscenes/', '/occ3d-nus/')
-                fastocc_nexts[idx_n]['cams']['CAM_BACK']['data_path'] = fastocc_nexts[idx_n]['cams']['CAM_BACK'][
+                cams_next['CAM_FRONT_LEFT']['data_path'] = fastocc_nexts[idx_n]['cams']['CAM_FRONT_LEFT'][
                     'data_path'].replace('/nuscenes/', '/occ3d-nus/')
-                fastocc_nexts[idx_n]['cams']['CAM_BACK_LEFT']['data_path'] = fastocc_nexts[idx_n]['cams']['CAM_BACK_LEFT'][
+                cams_next['CAM_BACK']['data_path'] = fastocc_nexts[idx_n]['cams']['CAM_BACK']['data_path'].replace(
+                    '/nuscenes/', '/occ3d-nus/')
+                cams_next['CAM_BACK_LEFT']['data_path'] = fastocc_nexts[idx_n]['cams']['CAM_BACK_LEFT']['data_path'].replace('/nuscenes/',
+                                                                                                          '/occ3d-nus/')
+                cams_next['CAM_BACK_RIGHT']['data_path'] = fastocc_nexts[idx_n]['cams']['CAM_BACK_RIGHT'][
                     'data_path'].replace('/nuscenes/', '/occ3d-nus/')
-                fastocc_nexts[idx_n]['cams']['CAM_BACK_RIGHT']['data_path'] = \
-                    fastocc_nexts[idx_n]['cams']['CAM_BACK_RIGHT']['data_path'].replace('/nuscenes/', '/occ3d-nus/')
+                fastocc_nexts[idx_n]['cams'] = cams_next
 
         occ_info['prev'] = fastocc_prevs
         occ_info['next'] = fastocc_nexts
