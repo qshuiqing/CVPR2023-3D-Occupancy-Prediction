@@ -62,7 +62,12 @@ class RandomAugImageMultiViewImage(object):
         scales
     """
 
-    def __init__(self, data_config=None, is_train=True, is_debug=False, is_exit=False, tmp='./figs'):
+    def __init__(self,
+                 data_config=None,
+                 is_train=True,
+                 is_debug=False,
+                 is_exit=False,
+                 tmp='./figs/augs'):
         self.data_config = data_config
         self.is_train = is_train
         self.is_debug = is_debug
@@ -115,15 +120,15 @@ class RandomAugImageMultiViewImage(object):
                 #     continue
                 try:
                     new_img = draw_lidar_bbox3d_on_img(bboxes, imgs[ii], lidar2imgs[ii], dict())
-                    img_filename = f'{self.tmp}/{bid}_imgaug_{cam_id}_{cam_type}_{ii // 6}_' + \
-                                   results['img_info'][ii]['filename'].split('/')[-1]
+                    img_filename = f'{self.tmp}/{results["index"]}_{cam_id}_{cam_type}_' + \
+                                   results['img_filename'][ii].split('/')[-1]
                     if not os.path.exists(self.tmp):
                         os.makedirs(self.tmp)
                     cv2.imwrite(img_filename, new_img)
                 except Exception:
                     new_img = imgs[ii]
-                    img_filename = f'{self.tmp}/{bid}_imgaug_{cam_id}_{cam_type}_' + \
-                                   results['img_info'][ii]['filename'].split('/')[-1]
+                    img_filename = f'{self.tmp}/{results["index"]}_{cam_id}_{cam_type}_' + \
+                                   results['img_filename'][ii].split('/')[-1]
                     if not os.path.exists(self.tmp):
                         os.makedirs(self.tmp)
                     cv2.imwrite(img_filename, new_img)
