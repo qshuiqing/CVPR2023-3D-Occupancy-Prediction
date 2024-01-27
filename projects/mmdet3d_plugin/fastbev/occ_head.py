@@ -144,7 +144,7 @@ class OccHead(BaseModule):
         Returns:
             list[dict]: labels.
         """
-        occ_out = preds['occ']
+        occ_out = preds
         occ_score = occ_out.softmax(-1)
         occ_score = occ_score.argmax(-1)
 

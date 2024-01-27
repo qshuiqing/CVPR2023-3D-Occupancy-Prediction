@@ -118,30 +118,20 @@ train_pipeline = [
     dict(type='ObjectRangeFilter', point_cloud_range=point_cloud_range),
     dict(type='ObjectNameFilter', classes=class_names),
     dict(type='KittiSetOrigin', point_cloud_range=point_cloud_range),
-    dict(type='RandomAugImageMultiViewImage', data_config=data_config, is_debug=True, is_exit=False),
+    dict(type='RandomAugImageMultiViewImage', data_config=data_config, is_train=True),
     dict(type='NormalizeMultiviewImage', **img_norm_cfg),
     dict(type='DefaultFormatBundle3D', class_names=class_names),
     dict(type='CustomCollect3D', keys=['img', 'voxel_semantics', 'mask_lidar', 'mask_camera'])
 ]
 
 test_pipeline = [
-    dict(type='LoadMultiViewImageFromFiles', to_float32=True),
+    dict(type='LoadMultiViewImageFromFiles', to_float32=False),
     dict(type='LoadOccGTFromFile', data_root=occ_gt_data_root),
     dict(type='KittiSetOrigin', point_cloud_range=point_cloud_range),
+    dict(type='RandomAugImageMultiViewImage', data_config=data_config, is_train=False),
     dict(type='NormalizeMultiviewImage', **img_norm_cfg),
-    dict(type='PadMultiViewImage', size_divisor=32),
-    dict(
-        type='MultiScaleFlipAug3D',
-        img_scale=(1600, 900),
-        pts_scale_ratio=1,
-        flip=False,
-        transforms=[
-            dict(
-                type='DefaultFormatBundle3D',
-                class_names=class_names,
-                with_label=False),
-            dict(type='CustomCollect3D', keys=['img'])
-        ])
+    dict(type='DefaultFormatBundle3D', class_names=class_names, with_label=False),
+    dict(type='CustomCollect3D', keys=['img'])
 ]
 
 data = dict(

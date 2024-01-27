@@ -245,30 +245,35 @@ class FastBEV(BaseDetector):
         return losses
 
     def forward_test(self, img, img_metas, **kwargs):
-        if not self.test_cfg.get('use_tta', False):
-            return self.simple_test(img, img_metas)
-        return self.aug_test(img, img_metas)
+        # if not self.test_cfg.get('use_tta', False):
+        #     return self.simple_test(img, img_metas)
+        # return self.aug_test(img, img_metas)
+
+        return self.simple_test(img, img_metas)
 
     def simple_test(self, img, img_metas):
-        bbox_results = []
-        feature_bev, _, features_2d = self.extract_feat(img, img_metas, "test")
-        if self.bbox_head is not None:
-            x = self.bbox_head(feature_bev)
-            bbox_list = self.bbox_head.get_bboxes(*x, img_metas, valid=None)
-            bbox_results = [
-                bbox3d2result(det_bboxes, det_scores, det_labels)
-                for det_bboxes, det_scores, det_labels in bbox_list
-            ]
+        # (1,256,200,200)
+        feature_bev = self.extract_feat(img, img_metas)
+        # if self.bbox_head is not None:
+        # (1,200,200,16,18)
+        x = self.bbox_head(feature_bev)
+        occ = self.bbox_head.get_occ(x)
 
-        else:
-            bbox_results = [dict()]
+        # bbox_list = self.bbox_head.get_bboxes(*x, img_metas, valid=None)
+        # bbox_results = [
+        #     bbox3d2result(det_bboxes, det_scores, det_labels)
+        #     for det_bboxes, det_scores, det_labels in bbox_list
+        # ]
+
+        # else:
+        #     bbox_results = [dict()]
 
         # BEV semantic seg
-        if self.seg_head is not None:
-            x_bev = self.seg_head(feature_bev)
-            bbox_results[0]['bev_seg'] = x_bev
+        # if self.seg_head is not None:
+        #     x_bev = self.seg_head(feature_bev)
+        #     bbox_results[0]['bev_seg'] = x_bev
 
-        return bbox_results
+        return occ
 
     def aug_test(self, imgs, img_metas):
         img_shape_copy = copy.deepcopy(img_metas[0]['img_shape'])
