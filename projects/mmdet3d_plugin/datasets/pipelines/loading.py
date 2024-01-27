@@ -7,7 +7,8 @@ import numpy as np
 import torch
 from PIL import Image
 from mmdet.datasets.builder import PIPELINES
-from mmdet3d.core.visualizer.image_vis import draw_lidar_bbox3d_on_img
+
+from projects.mmdet3d_plugin.core.visualizer.image_vis import draw_lidar_bbox3d_on_img
 
 
 @PIPELINES.register_module()
@@ -120,17 +121,17 @@ class RandomAugImageMultiViewImage(object):
                 #     continue
                 try:
                     new_img = draw_lidar_bbox3d_on_img(bboxes, imgs[ii], lidar2imgs[ii], dict())
-                    img_filename = f'{self.tmp}/{results["index"]}_{cam_id}_{cam_type}_{ii // 6}_' + \
+                    img_filename = f'{self.tmp}/{results["index"]}/{cam_id}_{cam_type}_{ii // 6}_' + \
                                    results['img_filename'][ii].split('/')[-1]
-                    if not os.path.exists(self.tmp):
-                        os.makedirs(self.tmp)
+                    if not os.path.exists(os.path.join(self.tmp, str(results["index"]))):
+                        os.makedirs(os.path.join(self.tmp, str(results["index"])))
                     cv2.imwrite(img_filename, new_img)
                 except Exception:
                     new_img = imgs[ii]
-                    img_filename = f'{self.tmp}/{results["index"]}_{cam_id}_{cam_type}_{ii // 6}_err_' + \
+                    img_filename = f'{self.tmp}/{results["index"]}/{cam_id}_{cam_type}_{ii // 6}_err_' + \
                                    results['img_filename'][ii].split('/')[-1]
-                    if not os.path.exists(self.tmp):
-                        os.makedirs(self.tmp)
+                    if not os.path.exists(os.path.join(self.tmp, str(results["index"]))):
+                        os.makedirs(os.path.join(self.tmp, str(results["index"])))
                     cv2.imwrite(img_filename, new_img)
         if self.is_exit:
             exit()
