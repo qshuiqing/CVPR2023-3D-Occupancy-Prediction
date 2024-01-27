@@ -48,6 +48,7 @@ _dim_ = 256
 
 multi_scale_id = [0, 1, 2]  # 4x/8x/16x
 
+sequential=True
 n_times = 4
 
 model = dict(
@@ -136,7 +137,7 @@ test_pipeline = [
 
 data = dict(
     samples_per_gpu=2,
-    workers_per_gpu=1,
+    workers_per_gpu=4,
     train=dict(
         type=dataset_type,
         data_root=data_root,
@@ -178,7 +179,7 @@ data = dict(
               pipeline=test_pipeline,
               classes=class_names,
               modality=input_modality,
-              sequential=True,
+              sequential=sequential,
               n_times=n_times,
               train_adj_ids=[1, 3, 5],
               max_interval=10,
