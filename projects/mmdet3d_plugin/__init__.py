@@ -8,5 +8,6 @@ from .datasets.pipelines import (
     NormalizeMultiviewImage, CustomCollect3D)
 from .fastbev import *
 from .models.backbones.vovnet import VoVNet
+from .models.hooks import *
 from .models.opt.adamw import AdamW2
 from .models.utils import *

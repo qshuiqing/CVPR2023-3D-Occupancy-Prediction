@@ -104,9 +104,6 @@ class MEGVIIEMAHook(Hook):
         if self.interval > 0 and runner.epoch % self.interval == 0:
             self.save_checkpoint(runner)
 
-    def after_run(self, runner):
-        self.save_checkpoint_iter(runner)
-
     @master_only
     def save_checkpoint(self, runner):
         state_dict = runner.ema_model.ema.state_dict()
@@ -116,19 +113,6 @@ class MEGVIIEMAHook(Hook):
             'updates': runner.ema_model.updates
         }
         save_path = f'epoch_{runner.epoch + 1}_ema.pth'
-        save_path = os.path.join(runner.work_dir, save_path)
-        torch.save(ema_checkpoint, save_path)
-        runner.logger.info(f'Saving ema checkpoint at {save_path}')
-
-    @master_only
-    def save_checkpoint_iter(self, runner):
-        state_dict = runner.ema_model.ema.state_dict()
-        ema_checkpoint = {
-            'iter': runner.iter,
-            'state_dict': state_dict,
-            'updates': runner.ema_model.updates
-        }
-        save_path = f'iter_{runner.iter}_ema.pth'
         save_path = os.path.join(runner.work_dir, save_path)
         torch.save(ema_checkpoint, save_path)
         runner.logger.info(f'Saving ema checkpoint at {save_path}')
