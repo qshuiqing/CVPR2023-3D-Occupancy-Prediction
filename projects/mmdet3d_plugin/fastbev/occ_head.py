@@ -135,13 +135,14 @@ class OccHead(BaseModule):
 
             voxel_semantics = voxel_semantics[mask_camera.nonzero().squeeze()]
             preds = preds[mask_camera.nonzero().squeeze()]
-            loss_lovasz = lovasz_softmax(preds, voxel_semantics)
+            loss_lovasz = lovasz_softmax(preds.softmax(-1), voxel_semantics)
 
         else:
             voxel_semantics = voxel_semantics.reshape(-1)
             preds = preds.reshape(-1, self.num_classes)
             loss_occ = self.loss_occ(preds, voxel_semantics, )
-            loss_lovasz = lovasz_softmax(preds, voxel_semantics)
+            loss_lovasz = lovasz_softmax(preds.softmax(-1), voxel_semantics)
+
         return loss_occ, loss_lovasz
 
     @force_fp32(apply_to=('preds'))
