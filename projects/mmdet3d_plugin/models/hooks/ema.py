@@ -101,7 +101,7 @@ class MEGVIIEMAHook(Hook):
         runner.ema_model.update(runner, runner.model.module)
 
     def after_train_epoch(self, runner):
-        if self.interval > 0 and runner.epoch % self.interval == 0:
+        if self.interval > 0 and (runner.epoch + 1) % self.interval == 0:
             self.save_checkpoint(runner)
 
     @master_only

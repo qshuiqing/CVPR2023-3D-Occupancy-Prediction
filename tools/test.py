@@ -237,14 +237,17 @@ def main():
         outputs = custom_multi_gpu_test(model, data_loader, args.tmpdir,
                                         args.gpu_collect)
 
+    if not args.show_dir:
+        args.show_dir = osp.join('test', args.config.split('/')[-1][:-3])
+
     rank, _ = get_dist_info()
     if rank == 0:
         if args.out:
             print(f'\nwriting results to {args.out}')
             assert False
             # mmcv.dump(outputs['bbox_results'], args.out)
+
         kwargs = {} if args.eval_options is None else args.eval_options
-        kwargs['jsonfile_prefix'] = osp.join('test', args.config.split('/')[-1][:-3])  # time.strftime('%Y%m%d')
         if args.format_only:
             dataset.format_results(outputs, **kwargs)
 
@@ -256,9 +259,7 @@ def main():
                 'rule', 'begin', 'end'
             ]:
                 eval_kwargs.pop(key, None)
-            eval_kwargs.update(dict(metric=args.eval, **kwargs))
-            eval_kwargs.update(dict(epoch=args.checkpoint.split('/')[-1][:-4], **kwargs))
-
+            eval_kwargs.update(dict(metric=args.eval, epoch=args.checkpoint.split('_')[-1][:-4], **kwargs))
             dataset.evaluate_miou(outputs, show_dir=args.show_dir, **eval_kwargs)
 
 

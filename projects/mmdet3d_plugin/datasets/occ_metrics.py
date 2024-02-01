@@ -125,16 +125,27 @@ class Metric_mIoU():
         _, _hist = self.compute_mIoU(masked_semantics_pred, masked_semantics_gt, self.num_classes)
         self.hist += _hist
 
-    def count_miou(self):
+    def count_miou(self, runner=None):
         res = {}
         mIoU = self.per_class_iu(self.hist)
         # assert cnt == num_samples, 'some samples are not included in the miou calculation'
-        print(f'===> per class IoU of {self.cnt} samples:')
+        if runner is not None:
+            runner.logger.info(f'===> per class IoU of {self.cnt} samples:')
+        else:
+            print(f'===> per class IoU of {self.cnt} samples:')
         for ind_class in range(self.num_classes - 1):
-            print(f'===> {self.class_names[ind_class]} - IoU = ' + str(round(mIoU[ind_class] * 100, 2)))
+            if runner is not None:
+                runner.logger.info(
+                    f'===> {self.class_names[ind_class]} - IoU = ' + str(round(mIoU[ind_class] * 100, 2)))
+            else:
+                print(f'===> {self.class_names[ind_class]} - IoU = ' + str(round(mIoU[ind_class] * 100, 2)))
             res[self.class_names[ind_class]] = round(mIoU[ind_class] * 100, 2)
 
-        print(f'===> mIoU of {self.cnt} samples: ' + str(round(np.nanmean(mIoU[:self.num_classes - 1]) * 100, 2)))
+        if runner is not None:
+            runner.logger.info(
+                f'===> mIoU of {self.cnt} samples: ' + str(round(np.nanmean(mIoU[:self.num_classes - 1]) * 100, 2)))
+        else:
+            print(f'===> mIoU of {self.cnt} samples: ' + str(round(np.nanmean(mIoU[:self.num_classes - 1]) * 100, 2)))
         res['Overall'] = round(np.nanmean(mIoU[:self.num_classes - 1]) * 100, 2)
         # print(f'===> sample-wise averaged mIoU of {cnt} samples: ' + str(round(np.nanmean(mIoU_avg), 2)))
 

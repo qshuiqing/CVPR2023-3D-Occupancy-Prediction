@@ -212,8 +212,8 @@ lr_config = dict(
     by_epoch=False
 )
 
-total_epochs = 24
-evaluation = dict(interval=1, pipeline=test_pipeline)
+total_epochs = 20
+evaluation = dict(interval=2, pipeline=test_pipeline)
 
 runner = dict(type='EpochBasedRunner', max_epochs=total_epochs)
 load_from = 'ckpts/cascade_mask_rcnn_r50_fpn_coco-mstrain_3x_20e_nuim_bbox_mAP_0.5400_segm_mAP_0.4300.pth'
@@ -234,6 +234,6 @@ custom_hooks = [
         type='MEGVIIEMAHook',
         init_updates=10560,
         priority='NORMAL',
-        interval=1,
+        interval=2,  # save only at epochs 2,4,6,...
     ),
 ]

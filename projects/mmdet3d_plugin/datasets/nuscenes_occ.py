@@ -250,15 +250,18 @@ class NuSceneOcc(NuScenesDataset):
             if self.eval_fscore:
                 self.fscore_eval_metrics.add_batch(occ_pred, gt_semantics, mask_lidar, mask_camera)
 
-        res = self.occ_eval_metrics.count_miou()
+        res = self.occ_eval_metrics.count_miou(runner)
         if self.eval_fscore:
             self.fscore_eval_metrics.count_fscore()
 
-        mmcv.mkdir_or_exist(eval_kwargs['jsonfile_prefix'])
         res.update(dict(epoch=eval_kwargs['epoch']))
-        with open(osp.join(eval_kwargs['jsonfile_prefix'], 'results.csv'), 'a', newline='') as f:
+        if not os.path.exists(osp.join(show_dir, 'results.csv')):
+            with open(osp.join(show_dir, 'results.csv'), 'w') as f:
+                writer = csv.writer(f)
+                writer.writerow(list(res.keys()))
+
+        with open(osp.join(show_dir, 'results.csv'), 'a', newline='') as f:
             writer = csv.writer(f)
-            writer.writerow(list(res.keys()))
             writer.writerow(list(res.values()))
 
     def format_results(self, occ_results, submission_prefix, **kwargs):
