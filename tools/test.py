@@ -237,9 +237,6 @@ def main():
         outputs = custom_multi_gpu_test(model, data_loader, args.tmpdir,
                                         args.gpu_collect)
 
-    if not args.show_dir:
-        args.show_dir = osp.join('test', args.config.split('/')[-1][:-3])
-
     rank, _ = get_dist_info()
     if rank == 0:
         if args.out:
@@ -260,7 +257,8 @@ def main():
             ]:
                 eval_kwargs.pop(key, None)
             eval_kwargs.update(dict(metric=args.eval, epoch=args.checkpoint.split('_')[-1][:-4], **kwargs))
-            dataset.evaluate_miou(outputs, show_dir=args.show_dir, **eval_kwargs)
+            jsonfile_prefix = osp.join('test', osp.splitext(osp.basename(args.config))[0])
+            dataset.evaluate_miou(outputs, jsonfile_prefix=jsonfile_prefix, **eval_kwargs)
 
 
 if __name__ == '__main__':

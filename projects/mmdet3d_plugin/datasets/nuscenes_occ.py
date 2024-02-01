@@ -255,12 +255,12 @@ class NuSceneOcc(NuScenesDataset):
             self.fscore_eval_metrics.count_fscore()
 
         res.update(dict(epoch=eval_kwargs['epoch']))
-        if not os.path.exists(osp.join(show_dir, 'results.csv')):
-            with open(osp.join(show_dir, 'results.csv'), 'w') as f:
+        if not os.path.exists(osp.join(eval_kwargs['jsonfile_prefix'], 'results.csv')):
+            with open(osp.join(eval_kwargs['jsonfile_prefix'], 'results.csv'), 'w') as f:
                 writer = csv.writer(f)
                 writer.writerow(list(res.keys()))
 
-        with open(osp.join(show_dir, 'results.csv'), 'a', newline='') as f:
+        with open(osp.join(eval_kwargs['jsonfile_prefix'], 'results.csv'), 'a', newline='') as f:
             writer = csv.writer(f)
             writer.writerow(list(res.values()))
 
