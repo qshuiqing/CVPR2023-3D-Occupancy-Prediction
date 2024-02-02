@@ -2,10 +2,11 @@ import copy
 import math
 
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
+from mmcv.cnn import ConvModule
 from mmcv.runner import BaseModule
 from mmdet.models import NECKS
-from mmseg.ops import resize
 
 
 @NECKS.register_module()
@@ -13,22 +14,53 @@ class FastOccLSViewTransformer(BaseModule):
     def __init__(self,
                  n_voxels,
                  voxel_size,
+                 in_channels,
+                 out_channels,
                  back_project,
                  extrinsic_noise,
                  multi_scale_3d_scaler,
+                 conv_cfg=None,
+                 norm_cfg=None,
+                 act_cfg=None,
+                 upsample_cfg=dict(mode='nearest'),
                  ):
         super(FastOccLSViewTransformer, self).__init__()
 
         self.n_voxels = n_voxels
         self.voxel_size = voxel_size
+        self.in_channels = in_channels
+        self.out_channels = out_channels
         self.back_project = back_project
         self.multi_scale_3d_scaler = multi_scale_3d_scaler
+        self.upsample_cfg = upsample_cfg
 
         # test time extrinsic noise
         self.extrinsic_noise = extrinsic_noise
         if self.extrinsic_noise > 0:
             for i in range(5):
                 print("### extrnsic noise: {} ###".format(self.extrinsic_noise))
+
+        self.lateral_convs = nn.ModuleList()
+        for i in range(len(n_voxels)):  # 3
+            l_conv = ConvModule(
+                in_channels,
+                out_channels,
+                1,
+                conv_cfg=conv_cfg,
+                norm_cfg=norm_cfg,
+                act_cfg=act_cfg,
+                inplace=False)
+            self.lateral_convs.append(l_conv)
+
+        self.fpn_conv = ConvModule(
+            out_channels,
+            out_channels,
+            3,
+            padding=1,
+            conv_cfg=conv_cfg,
+            norm_cfg=norm_cfg,
+            act_cfg=act_cfg,
+            inplace=False)
 
     @staticmethod
     def _compute_projection(img_meta, stride, noise=0):
@@ -100,36 +132,30 @@ class FastOccLSViewTransformer(BaseModule):
                     volumes.append(volume)
                 volume_list.append(torch.stack(volumes))  # list([bs, c, vx, vy, vz])
 
-            mlvl_volumes.append(torch.cat(volume_list, dim=1))  # list([bs,seq*c,vx,vy,vz])
+            volume_list = torch.cat(volume_list, dim=1)  # (bs,seq*c,vx,vy,vz) (1,256,200,200,6)
+            bs, c, dx, dy, dz = volume_list.shape  # 1,256,200,200,16
+            # (bs,c,dx,dy,dz)->(bs,dx,dy,dz,c)->(bs,dx,dy,dz*c)->(bs,dz*c,dx,dy) 1,1536,200,200
+            volume_list = volume_list.permute(0, 2, 3, 4, 1).reshape(bs, dx, dy, dz * c).permute(0, 3, 1,
+                                                                                                 2).contiguous()
+            mlvl_volumes.append(volume_list)  # list([bs,dz*n_times*c,vx,vy])
 
-        # bev ms: multi-scale bev map (different x/y/z)
-        for i in range(len(mlvl_volumes)):  # 3
-            mlvl_volume = mlvl_volumes[i]  # (1,256,200,200,6)
-            bs, c, x, y, z = mlvl_volume.shape
-            # collapse h, [bs, seq*c, vx, vy, vz] -> [bs,seq*c*vz,vx,vy]
-            mlvl_volume = mlvl_volume.permute(0, 2, 3, 4, 1).reshape(bs, x, y, z * c).permute(0, 3, 1, 2)
+        # build laterals
+        laterals = [
+            lateral_conv(mlvl_volumes[i])
+            for i, lateral_conv in enumerate(self.lateral_convs)
+        ]
 
-            # different x/y, [bs, seq*c*vz, vx, vy] -> [bs, seq*c*vz, vx', vy']
-            if self.multi_scale_3d_scaler == 'pool' and i != (len(mlvl_volumes) - 1):  # False
-                # pooling to bottom level
-                mlvl_volume = F.adaptive_avg_pool2d(mlvl_volume, mlvl_volumes[-1].size()[2:4])
-            elif self.multi_scale_3d_scaler == 'upsample' and i != 0:
-                # upsampling to top level
-                mlvl_volume = resize(
-                    mlvl_volume,
-                    mlvl_volumes[0].size()[2:4],
-                    mode='bilinear',
-                    align_corners=False)
-            else:
-                # same x/y
-                pass
+        # build top-down path
+        num_layers = len(laterals)
+        for i in range(num_layers - 1, 0, -1):
+            prev_shape = laterals[i - 1].shape[2:]
+            laterals[i - 1] += F.interpolate(
+                laterals[i], size=prev_shape, **self.upsample_cfg)
 
-            # [bs,seq*c*vz,vx',vy'] -> [bs, seq*c*vz, vx, vy, 1]
-            mlvl_volume = mlvl_volume.unsqueeze(-1)
-            mlvl_volumes[i] = mlvl_volume
-        mlvl_volumes = torch.cat(mlvl_volumes, dim=1)  # [bs,z1*c1+z2*c2+...,vx,vy,1]
+        # build outputs
+        out = self.fpn_conv(laterals[0])  # (1,64,200,200)
 
-        return mlvl_volumes  # (1,4608,200,200,1)
+        return out  # (1, 64, 200, 200)
 
 
 @torch.no_grad()

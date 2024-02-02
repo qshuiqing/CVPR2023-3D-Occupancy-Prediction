@@ -72,8 +72,11 @@ model = dict(
         in_channels=[256, 512, 1024, 2048],
         out_channels=64,
         num_outs=4),
+    neck_fuse=dict(in_channels=[256, 192, 128], out_channels=[64, 64, 64]),
     img_view_transformer=dict(
         type='FastOccLSViewTransformer',
+        in_channels=64 * n_times * 6,  # (c,n_times,dz)
+        out_channels=64,
         n_voxels=[
             [200, 200, 6],  # 4x
             [150, 150, 6],  # 8x
@@ -88,15 +91,14 @@ model = dict(
         extrinsic_noise=0,
         multi_scale_3d_scaler='upsample',
     ),
-    neck_fuse=dict(in_channels=[256, 192, 128], out_channels=[64, 64, 64]),
-    neck_3d=dict(
-        type='M2BevNeck',
-        in_channels=_dim_,
-        out_channels=_dim_,
-        num_layers=6,
-        stride=1,  # TODO 2
-        fuse=dict(in_channels=64 * n_times * 6 * 3, out_channels=_dim_),  # c*seq*h*fpn_lvl
-        norm_cfg=dict(type='SyncBN', requires_grad=True)),
+    img_bev_encoder_backbone=dict(
+        type='CustomResNet',
+        numC_input=64,
+        num_channels=[64 * 2, 64 * 4, 64 * 8]),
+    img_bev_encoder_neck=dict(
+        type='FPN_LSS',
+        in_channels=64 * 8 + 64 * 2,
+        out_channels=256),
     bbox_head=dict(
         type='OccHead',
         bev_h=200,
