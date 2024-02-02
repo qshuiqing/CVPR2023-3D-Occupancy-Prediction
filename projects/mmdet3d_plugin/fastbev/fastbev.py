@@ -14,32 +14,27 @@ from mmseg.ops import resize
 
 @DETECTORS.register_module()
 class FastBEV(BaseDetector):
-    def __init__(
-            self,
-            backbone,
-            neck,
-            neck_fuse,
-            neck_3d,
-            bbox_head,
-            n_voxels,
-            voxel_size,
-            train_cfg=None,
-            test_cfg=None,
-            train_cfg_2d=None,
-            test_cfg_2d=None,
-            pretrained=None,
-            init_cfg=None,
-            extrinsic_noise=0,
-            seq_detach=False,
-            multi_scale_id=None,
-            multi_scale_3d_scaler=None,
-            with_cp=False,
-            backproject='inplace',
-    ):
+    def __init__(self,
+                 backbone,
+                 neck,
+                 neck_fuse,
+                 neck_3d,
+                 bbox_head,
+                 n_voxels,
+                 voxel_size,
+                 init_cfg=None,
+                 extrinsic_noise=0,
+                 multi_scale_id=None,
+                 multi_scale_3d_scaler=None,
+                 with_cp=False,
+                 backproject='inplace',
+                 **kwargs):
         super().__init__(init_cfg=init_cfg)
+
         self.backbone = build_backbone(backbone)
         self.neck = build_neck(neck)
         self.neck_3d = build_neck(neck_3d)
+
         if isinstance(neck_fuse['in_channels'], list):
             for i, (in_channels, out_channels) in enumerate(zip(neck_fuse['in_channels'], neck_fuse['out_channels'])):
                 self.add_module(
@@ -51,13 +46,7 @@ class FastBEV(BaseDetector):
         self.multi_scale_id = multi_scale_id
         self.multi_scale_3d_scaler = multi_scale_3d_scaler
 
-        if bbox_head is not None:
-            bbox_head.update(train_cfg=train_cfg)
-            bbox_head.update(test_cfg=test_cfg)
-            self.bbox_head = build_head(bbox_head)
-            self.bbox_head.voxel_size = voxel_size
-        else:
-            self.bbox_head = None
+        self.bbox_head = build_head(bbox_head)
 
         self.n_voxels = n_voxels
         self.voxel_size = voxel_size
@@ -68,7 +57,6 @@ class FastBEV(BaseDetector):
             for i in range(5):
                 print("### extrnsic noise: {} ###".format(self.extrinsic_noise))
 
-        # detach adj feature
         self.backproject = backproject
 
         # checkpoint

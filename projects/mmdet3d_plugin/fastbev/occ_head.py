@@ -16,7 +16,7 @@ from projects.mmdet3d_plugin.fastbev.loss.lovasz_softmax import lovasz_softmax
 
 @HEADS.register_module()
 class OccHead(BaseModule):
-    """Head of Detr3D.
+    """Head of Occupancy Network.
     Args:
         with_box_refine (bool): Whether to refine the reference points
             in the decoder. Defaults to False.
@@ -30,18 +30,12 @@ class OccHead(BaseModule):
     def __init__(self,
                  bev_h=200,
                  bev_w=200,
-                 loss_occ=None,
-                 use_mask=False,
-                 num_classes=18,
                  pillar_h=16,
-                 use_3d=False,
-                 use_conv=False,
+                 num_classes=18,
                  embed_dims=256,
-                 out_dim=32,
-                 act_cfg=dict(type='ReLU', inplace=True),
-                 norm_cfg=dict(type='BN', ),
-                 norm_cfg_3d=dict(type='BN3d', ),
-                 **kwargs):
+                 out_dim=256,
+                 use_mask=False,
+                 loss_occ=None, ):
 
         super(OccHead, self).__init__()
 
@@ -56,60 +50,41 @@ class OccHead(BaseModule):
         self.embed_dims = embed_dims
         self.out_dim = out_dim
 
-        self.pillar_h = pillar_h
-        self.use_3d = use_3d
-        self.use_conv = use_conv
+        self.pillar_h = pillar_h  # 16
 
-        use_bias_3d = norm_cfg_3d is None
-        self.middle_dims = self.embed_dims // pillar_h
-        self.decoder = nn.Sequential(
-            ConvModule(
-                self.middle_dims,
-                self.out_dim,
-                kernel_size=3,
-                stride=1,
-                padding=1,
-                bias=use_bias_3d,
-                conv_cfg=dict(type='Conv3d'),
-                norm_cfg=norm_cfg_3d,
-                act_cfg=act_cfg),
-            ConvModule(
-                self.out_dim,
-                self.out_dim,
-                kernel_size=3,
-                stride=1,
-                padding=1,
-                bias=use_bias_3d,
-                conv_cfg=dict(type='Conv3d'),
-                norm_cfg=norm_cfg_3d,
-                act_cfg=act_cfg),
+        self.final_conv = ConvModule(
+            self.embed_dims,  # 256
+            self.out_dim,  # 256
+            kernel_size=3,
+            stride=1,
+            padding=1,
+            bias=True,
+            conv_cfg=dict(type='Conv2d')
         )
-        self.predicter = nn.Sequential(
+
+        self.predictor = nn.Sequential(  # 256->512->288
             nn.Linear(self.out_dim, self.out_dim * 2),
             nn.Softplus(),
-            nn.Linear(self.out_dim * 2, num_classes),
+            nn.Linear(self.out_dim * 2, self.pillar_h * num_classes),
         )
 
     @auto_fp16(apply_to='bev_embed')
     def forward(self, bev_embed):
-        """
-
+        """FlashOcc <https://arxiv.org/abs/2311.12058>
         Args:
             bev_embed: (1,256,100,100) - bs,c,dx,dy
-
         Returns:
-
+            occ_pred: (1,200,200,16,18) - bs,dx,dy,dz,n_cls
         """
-        bs, c, dx, dy = bev_embed.shape
 
-        # (1,16,16,200,200)->(1,32,16,200,200)
-        outputs = self.decoder(bev_embed.view(bs, -1, self.pillar_h, dx, dy))
-        outputs = outputs.permute(0, 3, 4, 2, 1)  # (1,200,200,16,32) - bs,dx,dy,dz,c
+        # (bs,c,dx,dy)-->(bs,c,dx,dy)-->(bs,dx,dy,c)
+        occ_pred = self.final_conv(bev_embed).permute(0, 2, 3, 1)
+        bs, dx, dy = occ_pred.shape[:3]
+        # (bs,dx,dy,c)-->(bs,dx,dy,2*c)-->(bs,dx,dy,dz*n_cls)
+        occ_pred = self.predictor(occ_pred)
+        occ_pred = occ_pred.view(bs, dx, dy, self.pillar_h, self.num_classes)
 
-        # (1,200,200,16,18)
-        outputs = self.predicter(outputs)
-
-        return outputs
+        return occ_pred
 
     @force_fp32(apply_to=('preds_dicts'))
     def loss(self,
