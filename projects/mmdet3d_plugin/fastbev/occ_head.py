@@ -49,7 +49,7 @@ class OccHead(BaseModule):
 
         if use_class_weights:
             self.class_weights = torch.from_numpy(1 / np.log(nusc_class_frequencies[:num_classes] + 0.001))
-        loss_occ.update(dict(class_weights=self.class_weights))
+        loss_occ.update(dict(class_weight=self.class_weights))
         self.loss_occ = build_loss(loss_occ)
 
         self.bev_h, self.bev_w = bev_h, bev_w
