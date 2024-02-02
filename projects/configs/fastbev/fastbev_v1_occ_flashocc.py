@@ -105,13 +105,14 @@ model = dict(
         bev_w=200,
         pillar_h=16,
         num_classes=18,
-        embed_dims=_dim_,
+        in_dims=_dim_,
         out_dim=_dim_,
         use_mask=True,
         loss_occ=dict(
             type='CrossEntropyLoss',
             use_sigmoid=False,
             loss_weight=1.0),
+        use_class_weights=True,
     ),
 )
 

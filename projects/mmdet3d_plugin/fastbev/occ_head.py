@@ -3,7 +3,8 @@
 # ---------------------------------------------
 #  Modified by Xiaoyu Tian
 # ---------------------------------------------
-
+import numpy as np
+import torch
 from mmcv.cnn import ConvModule
 from mmcv.runner import BaseModule, force_fp32
 from mmcv.runner import auto_fp16
@@ -12,6 +13,7 @@ from mmdet.models.builder import build_loss
 from torch import nn
 
 from projects.mmdet3d_plugin.fastbev.loss.lovasz_softmax import lovasz_softmax
+from projects.mmdet3d_plugin.fastbev.loss.nusc_param import nusc_class_frequencies
 
 
 @HEADS.register_module()
@@ -32,10 +34,12 @@ class OccHead(BaseModule):
                  bev_w=200,
                  pillar_h=16,
                  num_classes=18,
-                 embed_dims=256,
+                 in_dims=256,
                  out_dim=256,
-                 use_mask=False,
-                 loss_occ=None, ):
+                 use_mask=False,  # True
+                 loss_occ=None,  # CrossEntropyLoss
+                 use_class_weights=True,
+                 ):
 
         super(OccHead, self).__init__()
 
@@ -43,17 +47,19 @@ class OccHead(BaseModule):
         self.num_classes = num_classes
         self.use_mask = use_mask
 
+        if use_class_weights:
+            self.class_weights = torch.from_numpy(1 / np.log(nusc_class_frequencies[:num_classes] + 0.001))
+        loss_occ.update(dict(class_weights=self.class_weights))
         self.loss_occ = build_loss(loss_occ)
 
         self.bev_h, self.bev_w = bev_h, bev_w
 
-        self.embed_dims = embed_dims
+        self.in_dims = in_dims
         self.out_dim = out_dim
-
         self.pillar_h = pillar_h  # 16
 
         self.final_conv = ConvModule(
-            self.embed_dims,  # 256
+            self.in_dims,  # 256
             self.out_dim,  # 256
             kernel_size=3,
             stride=1,
