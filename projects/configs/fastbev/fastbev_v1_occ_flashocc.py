@@ -50,10 +50,11 @@ multi_scale_id = [0, 1, 2]  # 4x/8x/16x
 
 sequential = True
 n_times = 4
+samples_per_gpu = 1
 
 model = dict(
     type='FastBEV',
-    backproject='mean',
+    multi_scale_id=multi_scale_id,  # 4x
     backbone=dict(
         type='ResNet',
         depth=50,
@@ -71,6 +72,22 @@ model = dict(
         in_channels=[256, 512, 1024, 2048],
         out_channels=64,
         num_outs=4),
+    img_view_transformer=dict(
+        type='FastOccLSViewTransformer',
+        n_voxels=[
+            [200, 200, 6],  # 4x
+            [150, 150, 6],  # 8x
+            [100, 100, 6],  # 16x
+        ],
+        voxel_size=[
+            [0.5, 0.5, 1.0],  # 4x
+            [2 / 3, 2 / 3, 1.0],  # 8x
+            [1.0, 1.0, 1.0],  # 16x
+        ],
+        back_project='mean',
+        extrinsic_noise=0,
+        multi_scale_3d_scaler='upsample',
+    ),
     neck_fuse=dict(in_channels=[256, 192, 128], out_channels=[64, 64, 64]),
     neck_3d=dict(
         type='M2BevNeck',
@@ -94,18 +111,6 @@ model = dict(
             use_sigmoid=False,
             loss_weight=1.0),
     ),
-    multi_scale_id=multi_scale_id,  # 4x
-    multi_scale_3d_scaler='upsample',
-    n_voxels=[
-        [200, 200, 6],  # 4x
-        [150, 150, 6],  # 8x
-        [100, 100, 6],  # 16x
-    ],
-    voxel_size=[
-        [0.5, 0.5, 1.0],  # 4x
-        [2 / 3, 2 / 3, 1.0],  # 8x
-        [1.0, 1.0, 1.0],  # 16x
-    ],
 )
 
 dataset_type = 'InternalNuSceneOcc'
@@ -137,7 +142,7 @@ test_pipeline = [
 ]
 
 data = dict(
-    samples_per_gpu=2,
+    samples_per_gpu=samples_per_gpu,
     workers_per_gpu=6,
     train=dict(
         type=dataset_type,
