@@ -50,7 +50,7 @@ multi_scale_id = [0, 1, 2]  # 4x/8x/16x
 
 sequential = True
 n_times = 4
-samples_per_gpu = 1
+samples_per_gpu = 2
 
 model = dict(
     type='FastBEV',
@@ -112,7 +112,7 @@ model = dict(
             type='CrossEntropyLoss',
             use_sigmoid=False,
             loss_weight=1.0),
-        use_class_weights=True,
+        use_class_weights=False,
     ),
 )
 
