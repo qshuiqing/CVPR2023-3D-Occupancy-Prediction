@@ -256,7 +256,7 @@ class NuSceneOcc(NuScenesDataset):
 
         res.update(dict(epoch=eval_kwargs['epoch']))
         if not os.path.exists(osp.join(eval_kwargs['jsonfile_prefix'], 'results.csv')):
-            os.makedirs(osp.join(eval_kwargs['jsonfile_prefix'], 'results.csv'))
+            os.makedirs(eval_kwargs['jsonfile_prefix'], exist_ok=True)
             with open(osp.join(eval_kwargs['jsonfile_prefix'], 'results.csv'), 'w') as f:
                 writer = csv.writer(f)
                 writer.writerow(list(res.keys()))
