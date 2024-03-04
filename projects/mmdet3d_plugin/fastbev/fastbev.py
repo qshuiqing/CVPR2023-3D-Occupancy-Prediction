@@ -189,3 +189,15 @@ class FastBEV(BaseDetector):
 
     def show_results(self, *args, **kwargs):
         pass
+
+    def forward_dummy(self,
+                      img,  # (1,24,3,256,704)
+                      img_metas,
+                      **kwargs):
+
+        # (1,256,200,200) - bs,c,dx,dy
+        feature_bev = self.extract_feat(img, img_metas)
+
+        x = self.bbox_head(feature_bev)
+
+        return x

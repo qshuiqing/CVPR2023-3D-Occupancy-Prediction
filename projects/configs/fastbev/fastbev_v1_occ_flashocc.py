@@ -50,7 +50,7 @@ multi_scale_id = [0, 1, 2]  # 4x/8x/16x
 
 sequential = True
 n_times = 4
-samples_per_gpu = 2
+samples_per_gpu = 4
 
 model = dict(
     type='FastBEV',
