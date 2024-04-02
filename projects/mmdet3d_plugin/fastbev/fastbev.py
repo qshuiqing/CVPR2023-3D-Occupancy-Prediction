@@ -52,19 +52,6 @@ class FastBEV(BaseDetector):
         # checkpoint
         self.with_cp = with_cp
 
-    @staticmethod
-    def _compute_projection(img_meta, stride, noise=0):
-        projection = []
-        intrinsic = torch.eye(3, dtype=torch.float32)
-        intrinsic[:2] /= stride
-        extrinsics = map(torch.tensor, img_meta["ego2img"])
-        for extrinsic in extrinsics:
-            if noise > 0:
-                projection.append(intrinsic @ extrinsic[:3] + noise)
-            else:
-                projection.append(intrinsic @ extrinsic[:3])
-        return torch.stack(projection)
-
     @force_fp32()
     def bev_encoder(self, x):
         """
@@ -81,7 +68,7 @@ class FastBEV(BaseDetector):
             x = x[0]
         return x
 
-    def extract_feat(self, img, img_metas):
+    def extract_feat(self, img, img_metas=None):
 
         # (1,24,3,256,704)->(24,3,256,704)
         img = img.reshape([-1] + list(img.shape)[2:])
@@ -134,9 +121,9 @@ class FastBEV(BaseDetector):
     def forward_train(self,
                       img,  # (1,24,3,256,704)
                       img_metas,
-                      mask_lidar,  # (1,200,200,16)
-                      mask_camera,  # (1,200,200,16)
-                      voxel_semantics,  # (1,200,200,16)
+                      mask_lidar=None,  # (1,200,200,16)
+                      mask_camera=None,  # (1,200,200,16)
+                      voxel_semantics=None,  # (1,200,200,16)
                       **kwargs):
 
         # (1,256,200,200) - bs,c,dx,dy
@@ -154,7 +141,7 @@ class FastBEV(BaseDetector):
 
         return self.simple_test(img, img_metas)
 
-    def simple_test(self, img, img_metas):
+    def simple_test(self, img, img_metas, **kwargs):
 
         # (1,256,200,200)
         feature_bev = self.extract_feat(img, img_metas)
@@ -165,7 +152,7 @@ class FastBEV(BaseDetector):
 
         return occ
 
-    def aug_test(self, imgs, img_metas):
+    def aug_test(self, imgs, img_metas, **kwargs):
         img_shape_copy = copy.deepcopy(img_metas[0]['img_shape'])
         extrinsic_copy = copy.deepcopy(img_metas[0]['lidar2img']['extrinsic'])
 
@@ -176,7 +163,7 @@ class FastBEV(BaseDetector):
             img_metas[0]['lidar2img']['extrinsic'] = extrinsic_copy[24 * tta_id:24 * (tta_id + 1)]
             img_metas_list.append(img_metas)
 
-            feature_bev, _, _ = self.extract_feat(imgs[:, 24 * tta_id:24 * (tta_id + 1)], img_metas, "test")
+            feature_bev, _, _ = self.extract_feat(imgs[:, 24 * tta_id:24 * (tta_id + 1)], img_metas)
             x = self.bbox_head(feature_bev)
             x_list.append(x)
 

@@ -1,10 +1,10 @@
 .idea
-work_dirs
 ckpts
+data
+test
+val
+work_dirs
 
 .DS_Store
-data/annotations.json
-data/gts.tar.gz
-data/imgs.tar.gz
-data/**/*.npz
-data/**/*.jpg
+
+

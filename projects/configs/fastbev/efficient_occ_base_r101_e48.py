@@ -57,21 +57,25 @@ model = dict(
     multi_scale_id=multi_scale_id,  # 4x
     backbone=dict(
         type='ResNet',
-        depth=50,
+        depth=101,
         num_stages=4,
-        out_indices=(0, 1, 2, 3),
+        out_indices=(1, 2, 3),
         frozen_stages=1,
-        norm_cfg=dict(type='SyncBN', requires_grad=True),
+        norm_cfg=dict(type='BN2d', requires_grad=False),
         norm_eval=True,
-        init_cfg=dict(type='Pretrained', checkpoint='torchvision://resnet50'),
-        style='pytorch'
+        style='pytorch',
+        dcn=dict(type='DCNv2', deform_groups=1, fallback_on_stride=False),
+        stage_with_dcn=(False, False, True, True)
     ),
     neck=dict(
         type='FPN',
-        norm_cfg=dict(type='SyncBN', requires_grad=True),
-        in_channels=[256, 512, 1024, 2048],
+        in_channels=[512, 1024, 2048],
         out_channels=64,
-        num_outs=4),
+        start_level=0,
+        add_extra_convs='on_output',
+        num_outs=4,
+        relu_before_extra_convs=True,
+    ),
     neck_fuse=dict(in_channels=[256, 192, 128], out_channels=[64, 64, 64]),
     img_view_transformer=dict(
         type='FastOccLSViewTransformer',
@@ -221,11 +225,11 @@ lr_config = dict(
     by_epoch=False
 )
 
-total_epochs = 20
-evaluation = dict(interval=2, pipeline=test_pipeline)
+total_epochs = 48
+evaluation = dict(start=19, interval=1, pipeline=test_pipeline)
 
 runner = dict(type='EpochBasedRunner', max_epochs=total_epochs)
-load_from = 'ckpts/cascade_mask_rcnn_r50_fpn_coco-mstrain_3x_20e_nuim_bbox_mAP_0.5400_segm_mAP_0.4300.pth'
+load_from = 'ckpts/r101_dcn_fcos3d_pretrain.pth'
 log_config = dict(
     interval=50,
     hooks=[
@@ -233,7 +237,7 @@ log_config = dict(
         dict(type='TensorboardLoggerHook')
     ])
 
-checkpoint_config = dict(interval=1)
+checkpoint_config = dict(interval=1, max_keep_ckpts=1)
 
 # fp16 settings, the loss scale is specifically tuned to avoid Nan
 fp16 = dict(loss_scale='dynamic')
