@@ -193,7 +193,7 @@ class FastOccLSViewTransformer(BaseModule):
                                                                                                  2).contiguous()
             mlvl_volumes.append(volume_list)  # list([bs,dz*n_times*c,vx,vy])
 
-        # C & S & C attention
+        # H & S & C attention
         mlvl_volumes = [
             attention(mlvl_volumes[i])
             for i, attention in enumerate(self.attentions)

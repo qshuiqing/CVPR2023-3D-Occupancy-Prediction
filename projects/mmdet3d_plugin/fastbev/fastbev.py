@@ -14,8 +14,8 @@ from mmseg.ops import resize
 @DETECTORS.register_module()
 class FastBEV(BaseDetector):
     def __init__(self,
-                 backbone,
-                 neck,
+                 img_backbone,
+                 img_neck,
                  neck_fuse,
                  # view transformer
                  img_view_transformer,
@@ -29,8 +29,8 @@ class FastBEV(BaseDetector):
                  **kwargs):
         super().__init__(init_cfg=init_cfg)
 
-        self.backbone = build_backbone(backbone)
-        self.neck = build_neck(neck)
+        self.img_backbone = build_backbone(img_backbone)
+        self.img_neck = build_neck(img_neck)
 
         self.img_view_transformer = build_neck(img_view_transformer)
 
@@ -70,14 +70,14 @@ class FastBEV(BaseDetector):
 
     def extract_feat(self, img, img_metas=None):
 
-        # (1,24,3,256,704)->(24,3,256,704)
-        img = img.reshape([-1] + list(img.shape)[2:])
+        # (4,24,3,900,1600)->(24,3,900,1600)
+        img = img.view([-1] + list(img.shape)[2:])
         # (24,256*i,64/i,176/i) i=1,2,4,8
-        x = self.backbone(img)
+        x = self.img_backbone(img)
 
         # fuse features
         def _inner_forward(x):
-            out = self.neck(x)
+            out = self.img_neck(x)
             return out
 
         if self.with_cp and x.requires_grad:
