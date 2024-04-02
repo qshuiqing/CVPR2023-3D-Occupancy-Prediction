@@ -6,5 +6,6 @@ val
 work_dirs
 
 .DS_Store
+figs/augs
 
 
