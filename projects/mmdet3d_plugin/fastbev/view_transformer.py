@@ -124,9 +124,9 @@ class FastOccLSViewTransformer(BaseModule):
         extrinsics = map(torch.tensor, img_meta["ego2img"])
         for extrinsic in extrinsics:
             if noise > 0:
-                projection.append(intrinsic @ extrinsic[:3] + noise)
+                projection.append(intrinsic @ extrinsic[:3] @ img_meta['bda_mat'].inverse() + noise)
             else:
-                projection.append(intrinsic @ extrinsic[:3])
+                projection.append(intrinsic @ extrinsic[:3] @ img_meta['bda_mat'].inverse())
         return torch.stack(projection)
 
     def forward(self, mlvl_feats, img_metas):
@@ -229,7 +229,7 @@ def get_points(n_voxels, voxel_size, origin):
             ]
         )
     )
-    new_origin = origin - n_voxels / 2.0 * voxel_size
+    new_origin = origin - n_voxels / 2.0 * voxel_size + voxel_size / 2.0
     points = points * voxel_size.view(3, 1, 1, 1) + new_origin.view(3, 1, 1, 1)
     return points
 

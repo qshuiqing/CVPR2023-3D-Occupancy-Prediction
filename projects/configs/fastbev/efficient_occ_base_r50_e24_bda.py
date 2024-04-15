@@ -31,6 +31,13 @@ data_config = {
     'pad_color': (0, 0, 0),
 }
 
+bda_aug_conf = dict(
+    rot_lim=(-0., 0.),
+    scale_lim=(1., 1.),
+    flip_dx_ratio=0.5,
+    flip_dy_ratio=0.5
+)
+
 # For nuScenes we usually do 10-class detection
 class_names = [
     'car', 'truck', 'construction_vehicle', 'bus', 'trailer', 'barrier',
@@ -123,13 +130,14 @@ occ_gt_data_root = 'data/occ3d-nus'
 
 train_pipeline = [
     dict(type='LoadMultiViewImageFromFiles', to_float32=False),
+    dict(type='RandomAugImageMultiViewImage', data_config=data_config, is_train=True),
+    dict(type='NormalizeMultiviewImage', **img_norm_cfg),
+    dict(type='LoadAnnotationsBEVDepth', bda_aug_conf=bda_aug_conf, classes=class_names, is_train=True),
     dict(type='LoadOccGTFromFile', data_root=occ_gt_data_root),
     dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True, with_attr_label=False),
     dict(type='ObjectRangeFilter', point_cloud_range=point_cloud_range),
     dict(type='ObjectNameFilter', classes=class_names),
     dict(type='KittiSetOrigin', point_cloud_range=point_cloud_range),
-    dict(type='RandomAugImageMultiViewImage', data_config=data_config, is_train=True),
-    dict(type='NormalizeMultiviewImage', **img_norm_cfg),
     dict(type='DefaultFormatBundle3D', class_names=class_names),
     dict(type='CustomCollect3D', keys=['img', 'voxel_semantics', 'mask_lidar', 'mask_camera'])
 ]
@@ -139,6 +147,7 @@ test_pipeline = [
     dict(type='LoadOccGTFromFile', data_root=occ_gt_data_root),
     dict(type='KittiSetOrigin', point_cloud_range=point_cloud_range),
     dict(type='RandomAugImageMultiViewImage', data_config=data_config, is_train=False),
+    dict(type='LoadAnnotationsBEVDepth', bda_aug_conf=bda_aug_conf, classes=class_names, is_train=False),
     dict(type='NormalizeMultiviewImage', **img_norm_cfg),
     dict(type='DefaultFormatBundle3D', class_names=class_names, with_label=False),
     dict(type='CustomCollect3D', keys=['img'])
@@ -222,7 +231,7 @@ lr_config = dict(
 )
 
 total_epochs = 24
-evaluation = dict(start=19, interval=1, pipeline=test_pipeline)
+evaluation = dict(start=20, interval=1, pipeline=test_pipeline)
 
 runner = dict(type='EpochBasedRunner', max_epochs=total_epochs)
 load_from = 'ckpts/cascade_mask_rcnn_r50_fpn_coco-mstrain_3x_20e_nuim_bbox_mAP_0.5400_segm_mAP_0.4300.pth'
@@ -233,7 +242,7 @@ log_config = dict(
         dict(type='TensorboardLoggerHook')
     ])
 
-checkpoint_config = dict(interval=1, max_keep_ckpts=1)
+checkpoint_config = dict(interval=1, max_keep_ckpts=2)
 
 # fp16 settings, the loss scale is specifically tuned to avoid Nan
 fp16 = dict(loss_scale='dynamic')
@@ -244,30 +253,6 @@ custom_hooks = [
         init_updates=10560,
         priority='NORMAL',
         interval=1,  # save only at epochs 2,4,6,...
-        # resume='../work_dirs/efficient_occ_base_r50_e24/epoch_14_ema.pth'
+        resume='../work_dirs/efficient_occ_base_r50_e24_bda/epoch_20_ema.pth'
     ),
 ]
-
-
-# [>>>>>>>>>>>>>>>>>>>>>>>>>>] 6019/6019, 2.9 task/s, elapsed: 2112s, ETA:     0s
-# Starting Evaluation...
-# 100%|██████████| 6019/6019 [00:59<00:00, 101.31it/s]
-# per class IoU of 6019 samples:
-# others - IoU = 9.61
-# barrier - IoU = 43.33
-# bicycle - IoU = 19.0
-# bus - IoU = 39.11
-# car - IoU = 46.16
-# construction_vehicle - IoU = 15.59
-# motorcycle - IoU = 19.61
-# pedestrian - IoU = 19.39
-# traffic_cone - IoU = 16.91
-# trailer - IoU = 28.87
-# truck - IoU = 31.28
-# driveable_surface - IoU = 81.11
-# other_flat - IoU = 41.8
-# sidewalk - IoU = 50.11
-# terrain - IoU = 53.94
-# manmade - IoU = 39.46
-# vegetation - IoU = 35.26
-# mIoU of 6019 samples: 34.74

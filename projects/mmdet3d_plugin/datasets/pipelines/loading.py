@@ -44,6 +44,21 @@ class LoadOccGTFromFile(object):
             mask_lidar = np.zeros((200, 200, 16), dtype=np.uint8)
             mask_camera = np.zeros((200, 200, 16), dtype=np.uint8)
 
+        semantics = torch.from_numpy(semantics)
+        mask_lidar = torch.from_numpy(mask_lidar)
+        mask_camera = torch.from_numpy(mask_camera)
+
+        if results.get('flip_dx', False):  # semantics[::-1,...]
+            semantics = torch.flip(semantics, [0])
+            mask_lidar = torch.flip(mask_lidar, [0])
+            mask_camera = torch.flip(mask_camera, [0])
+
+        if results.get('flip_dy', False):  # semantics[:,::-1,...]
+            semantics = torch.flip(semantics, [1])
+            mask_lidar = torch.flip(mask_lidar, [1])
+            mask_camera = torch.flip(mask_camera, [1])
+
+
         results['voxel_semantics'] = semantics
         results['mask_lidar'] = mask_lidar
         results['mask_camera'] = mask_camera
@@ -259,4 +274,89 @@ class KittiSetOrigin:
 
     def __call__(self, results):
         results['origin'] = self.origin.copy()
+        return results
+
+@PIPELINES.register_module()
+class LoadAnnotationsBEVDepth(object):
+
+    def __init__(self, bda_aug_conf, classes, is_train=True):
+        self.bda_aug_conf = bda_aug_conf
+        self.is_train = is_train
+        self.classes = classes
+
+    def sample_bda_augmentation(self, tta_config=None):
+        """Generate bda augmentation values based on bda_config."""
+        if self.is_train:
+            rotate_bda = np.random.uniform(*self.bda_aug_conf['rot_lim'])
+            scale_bda = np.random.uniform(*self.bda_aug_conf['scale_lim'])
+            flip_dx = np.random.uniform() < self.bda_aug_conf['flip_dx_ratio']
+            flip_dy = np.random.uniform() < self.bda_aug_conf['flip_dy_ratio']
+        else:
+            rotate_bda = 0
+            scale_bda = 1.0
+            if tta_config is not None:
+                flip_dx = tta_config['flip_dx']
+                flip_dy = tta_config['flip_dy']
+            else:
+                flip_dx = False
+                flip_dy = False
+
+        return rotate_bda, scale_bda, flip_dx, flip_dy
+
+    def bev_transform(self, gt_boxes, rotate_angle, scale_ratio, flip_dx,
+                      flip_dy):
+        rotate_angle = torch.tensor(rotate_angle / 180 * np.pi)
+        rot_sin = torch.sin(rotate_angle)
+        rot_cos = torch.cos(rotate_angle)
+        rot_mat = torch.Tensor([[rot_cos, -rot_sin, 0], [rot_sin, rot_cos, 0],
+                                [0, 0, 1]])
+        scale_mat = torch.Tensor([[scale_ratio, 0, 0], [0, scale_ratio, 0],
+                                  [0, 0, scale_ratio]])
+        flip_mat = torch.Tensor([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+        if flip_dx:
+            flip_mat = flip_mat @ torch.Tensor([[-1, 0, 0], [0, 1, 0],
+                                                [0, 0, 1]])
+        if flip_dy:
+            flip_mat = flip_mat @ torch.Tensor([[1, 0, 0], [0, -1, 0],
+                                                [0, 0, 1]])
+        rot_mat = flip_mat @ (scale_mat @ rot_mat)
+        # if gt_boxes.shape[0] > 0:
+        #     gt_boxes[:, :3] = (
+        #             rot_mat @ gt_boxes[:, :3].unsqueeze(-1)).squeeze(-1)
+        #     gt_boxes[:, 3:6] *= scale_ratio
+        #     gt_boxes[:, 6] += rotate_angle
+        #     if flip_dx:
+        #         gt_boxes[:,
+        #         6] = 2 * torch.asin(torch.tensor(1.0)) - gt_boxes[:,
+        #                                                  6]
+        #     if flip_dy:
+        #         gt_boxes[:, 6] = -gt_boxes[:, 6]
+        #     gt_boxes[:, 7:] = (
+        #             rot_mat[:2, :2] @ gt_boxes[:, 7:].unsqueeze(-1)).squeeze(-1)
+        return gt_boxes, rot_mat
+
+    def __call__(self, results):
+        # gt_boxes, gt_labels = results['ann_info']['gt_bboxes_3d'], results['ann_info']['gt_labels_3d']
+        # gt_boxes, gt_labels = gt_boxes.tensor, torch.tensor(gt_labels)
+        tta_confg = results.get('tta_config', None)
+        rotate_bda, scale_bda, flip_dx, flip_dy = self.sample_bda_augmentation(tta_confg)
+        bda_mat = torch.zeros(4, 4)
+        bda_mat[3, 3] = 1
+        gt_boxes, bda_rot = self.bev_transform(None, rotate_bda, scale_bda,
+                                               flip_dx, flip_dy)
+        bda_mat[:3, :3] = bda_rot
+        # if len(gt_boxes) == 0:
+        #     gt_boxes = torch.zeros(0, 9)
+        # results['gt_bboxes_3d'] = \
+        #     LiDARInstance3DBoxes(gt_boxes, box_dim=gt_boxes.shape[-1],
+        #                          origin=(0.5, 0.5, 0.5))
+        # results['gt_labels_3d'] = gt_labels
+
+        results['bda_mat'] = bda_mat
+
+        results['flip_dx'] = flip_dx
+        results['flip_dy'] = flip_dy
+        results['rotate_bda'] = rotate_bda
+        results['scale_bda'] = scale_bda
+
         return results
