@@ -14,7 +14,7 @@ img_norm_cfg = dict(mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375],
 
 data_config = {
     'src_size': (900, 1600),
-    'input_size': (256, 704),
+    'input_size': (900, 1600),
     # train-aug
     'resize': (-0.06, 0.11),
     'crop': (-0.05, 0.05),
@@ -53,77 +53,63 @@ input_modality = dict(
 
 _dim_ = 256
 
-# 消融实验时会有某些参数未使用报错，设置为True忽略错误
-# 不能与 with_cp = True 共同使用
-find_unused_parameters = True
-
-# 是否使用 img feat encoder
-use_img_feat_encoder = True
-
-# 是否使用 multi-scale bev fusion
-use_multi_bev = True
-
-# 是否使用 height-attention
-use_attention = False
-
-# 是否开启时间融合
-sequential = True
-# 融合帧数
-adj_ids = [1, 3, 5]  # 3帧
-
-# batch_size
-samples_per_gpu = 3
-
-# 勿动
-n_times = len(adj_ids) + 1 if sequential else 1
 multi_scale_id = [0, 1, 2]  # 4x/8x/16x
+
+sequential = True
+n_times = 3
+adj_ids = [1,3]  # [1, 3, 5]
+
+samples_per_gpu = 1
 
 model = dict(
     type='FastBEV',
     multi_scale_id=multi_scale_id,  # 4x
-    use_img_feat_encoder=use_img_feat_encoder,
     img_backbone=dict(
         type='ResNet',
-        depth=50,
+        depth=101,
         num_stages=4,
-        out_indices=(0, 1, 2, 3),
+        out_indices=(1, 2, 3),
         frozen_stages=1,
-        norm_cfg=dict(type='SyncBN', requires_grad=True),
+        norm_cfg=dict(type='BN2d', requires_grad=False),
         norm_eval=True,
-        init_cfg=dict(type='Pretrained', checkpoint='torchvision://resnet50'),
-        style='pytorch'
+        style='pytorch',
+        dcn=dict(type='DCNv2', deform_groups=1, fallback_on_stride=False),
+        stage_with_dcn=(False, False, True, True),
+        with_cp=True,
     ),
     img_neck=dict(
         type='FPN',
-        norm_cfg=dict(type='SyncBN', requires_grad=True),
-        in_channels=[256, 512, 1024, 2048],
-        out_channels=64,
-        num_outs=4),
-    neck_fuse=dict(in_channels=[256, 192, 128], out_channels=[64, 64, 64]),
+        in_channels=[512, 1024, 2048],
+        out_channels=256,
+        start_level=0,
+        add_extra_convs='on_output',
+        num_outs=4,
+        relu_before_extra_convs=True,
+    ),
+    neck_fuse=dict(in_channels=[1024, 768, 512], out_channels=[256, 256, 256]),
     img_view_transformer=dict(
         type='FastOccLSViewTransformer',
-        in_channels=64 * n_times * 8,  # (c,n_times,dz)
+        in_channels=256 * n_times * 6,  # (c,n_times,dz)
         out_channels=64,
         n_voxels=[
-            [200, 200, 8],  # 4x
-            [150, 150, 8],  # 8x
-            [100, 100, 8],  # 16x
+            [200, 200, 6],  # 4x
+            [150, 150, 6],  # 8x
+            [100, 100, 6],  # 16x
         ],
         voxel_size=[
-            [0.4, 0.4, 0.8],  # 4x
-            [8 / 15, 8 / 15, 0.8],  # 8x
-            [0.8, 0.8, 0.8],  # 16x
+            [0.5, 0.5, 1.0],  # 4x
+            [2 / 3, 2 / 3, 1.0],  # 8x
+            [1.0, 1.0, 1.0],  # 16x
         ],
         back_project='mean',
         extrinsic_noise=0,
         multi_scale_3d_scaler='upsample',
-        use_attention=use_attention,
-        use_multi_bev=use_multi_bev,
     ),
     img_bev_encoder_backbone=dict(
         type='CustomResNet',
         numC_input=64,
-        num_channels=[64 * 2, 64 * 4, 64 * 8]),
+        num_channels=[64 * 2, 64 * 4, 64 * 8],
+        with_cp=True),
     img_bev_encoder_neck=dict(
         type='FPN_LSS',
         in_channels=64 * 8 + 64 * 2,
@@ -189,12 +175,12 @@ data = dict(
         use_valid_flag=True,
         sequential=True,
         n_times=n_times,
-        train_adj_ids=[1, 3, 5],
+        train_adj_ids=adj_ids,
         max_interval=10,
         min_interval=0,
         prev_only=True,
         test_adj='prev',
-        test_adj_ids=[1, 3, 5],
+        test_adj_ids=adj_ids,
         # we use box_type_3d='LiDAR' in kitti and nuscenes dataset
         # and box_type_3d='Depth' in sunrgbd and scannet dataset.
         box_type_3d='LiDAR'),
@@ -207,11 +193,11 @@ data = dict(
              samples_per_gpu=1,
              sequential=True,
              n_times=n_times,
-             train_adj_ids=[1, 3, 5],
+             train_adj_ids=adj_ids,
              max_interval=10,
              min_interval=0,
              test_adj='prev',
-             test_adj_ids=[1, 3, 5],
+             test_adj_ids=adj_ids,
              ),
     test=dict(type=dataset_type,
               data_root=data_root,
@@ -221,11 +207,11 @@ data = dict(
               modality=input_modality,
               sequential=sequential,
               n_times=n_times,
-              train_adj_ids=[1, 3, 5],
+              train_adj_ids=adj_ids,
               max_interval=10,
               min_interval=0,
               test_adj='prev',
-              test_adj_ids=[1, 3, 5],
+              test_adj_ids=adj_ids,
               ),
     shuffler_sampler=dict(type='DistributedGroupSampler'),
     nonshuffler_sampler=dict(type='DistributedSampler')
@@ -253,10 +239,10 @@ lr_config = dict(
 )
 
 total_epochs = 24
-evaluation = dict(interval=24, pipeline=test_pipeline)
+evaluation = dict(start=20, interval=1, pipeline=test_pipeline)
 
 runner = dict(type='EpochBasedRunner', max_epochs=total_epochs)
-load_from = 'ckpts/cascade_mask_rcnn_r50_fpn_coco-mstrain_3x_20e_nuim_bbox_mAP_0.5400_segm_mAP_0.4300.pth'
+load_from = 'ckpts/r101_dcn_fcos3d_pretrain.pth'
 log_config = dict(
     interval=50,
     hooks=[
@@ -264,7 +250,7 @@ log_config = dict(
         dict(type='TensorboardLoggerHook')
     ])
 
-checkpoint_config = dict(interval=1, max_keep_ckpts=2)
+checkpoint_config = dict(interval=1, max_keep_ckpts=1)
 
 # fp16 settings, the loss scale is specifically tuned to avoid Nan
 fp16 = dict(loss_scale='dynamic')
@@ -274,7 +260,6 @@ custom_hooks = [
         type='MEGVIIEMAHook',
         init_updates=10560,
         priority='NORMAL',
-        interval=1,  # save only at epochs 2,4,6,...
-        # resume='../work_dirs/efficient_occ_base_r50_e24_bda/epoch_20_ema.pth'
+        interval=2,  # save only at epochs 2,4,6,...
     ),
 ]

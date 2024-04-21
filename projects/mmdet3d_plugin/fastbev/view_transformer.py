@@ -73,6 +73,8 @@ class FastOccLSViewTransformer(BaseModule):
                  norm_cfg=None,
                  act_cfg=None,
                  upsample_cfg=dict(mode='nearest'),
+                 use_attention=True,
+                 use_multi_bev=True,
                  ):
         super(FastOccLSViewTransformer, self).__init__()
 
@@ -90,12 +92,11 @@ class FastOccLSViewTransformer(BaseModule):
             for i in range(5):
                 print("### extrnsic noise: {} ###".format(self.extrinsic_noise))
 
-        self.attentions = nn.ModuleList()
+        # 是否使用多尺度bev融合
+        self.use_multi_bev = use_multi_bev
+        n_layers = len(n_voxels) if self.use_multi_bev else 1
         self.lateral_convs = nn.ModuleList()
-        for i in range(len(n_voxels)):  # 3
-
-            self.attentions.append(BasicBlock(in_channels))
-
+        for i in range(n_layers):  # 3
             l_conv = ConvModule(
                 in_channels,
                 out_channels,
@@ -105,6 +106,13 @@ class FastOccLSViewTransformer(BaseModule):
                 act_cfg=act_cfg,
                 inplace=False)
             self.lateral_convs.append(l_conv)
+
+        # 是否使用高度注意力
+        self.use_attention = use_attention
+        self.attentions = nn.ModuleList()
+        if self.use_attention:
+            for i in range(n_layers):
+                self.attentions.append(BasicBlock(in_channels))
 
         self.fpn_conv = ConvModule(
             out_channels,
@@ -194,10 +202,11 @@ class FastOccLSViewTransformer(BaseModule):
             mlvl_volumes.append(volume_list)  # list([bs,dz*n_times*c,vx,vy])
 
         # H & S & C attention
-        mlvl_volumes = [
-            attention(mlvl_volumes[i])
-            for i, attention in enumerate(self.attentions)
-        ]
+        if self.use_attention:
+            mlvl_volumes = [
+                attention(mlvl_volumes[i])
+                for i, attention in enumerate(self.attentions)
+            ]
 
         # build laterals
         laterals = [
@@ -206,11 +215,12 @@ class FastOccLSViewTransformer(BaseModule):
         ]
 
         # build top-down path
-        num_layers = len(laterals)
-        for i in range(num_layers - 1, 0, -1):
-            prev_shape = laterals[i - 1].shape[2:]
-            laterals[i - 1] += F.interpolate(
-                laterals[i], size=prev_shape, **self.upsample_cfg)
+        if self.use_multi_bev:
+            num_layers = len(laterals)
+            for i in range(num_layers - 1, 0, -1):
+                prev_shape = laterals[i - 1].shape[2:]
+                laterals[i - 1] += F.interpolate(
+                    laterals[i], size=prev_shape, **self.upsample_cfg)
 
         # build outputs
         out = self.fpn_conv(laterals[0])  # (1,64,200,200)
