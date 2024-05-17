@@ -195,12 +195,12 @@ data = dict(
         use_valid_flag=True,
         sequential=True,
         n_times=n_times,
-        train_adj_ids=[1, 3, 5],
+        train_adj_ids=adj_ids,
         max_interval=10,
         min_interval=0,
         prev_only=True,
         test_adj='prev',
-        test_adj_ids=[1, 3, 5],
+        test_adj_ids=adj_ids,
         # we use box_type_3d='LiDAR' in kitti and nuscenes dataset
         # and box_type_3d='Depth' in sunrgbd and scannet dataset.
         box_type_3d='LiDAR'),
@@ -213,11 +213,11 @@ data = dict(
              samples_per_gpu=1,
              sequential=True,
              n_times=n_times,
-             train_adj_ids=[1, 3, 5],
+             train_adj_ids=adj_ids,
              max_interval=10,
              min_interval=0,
              test_adj='prev',
-             test_adj_ids=[1, 3, 5],
+             test_adj_ids=adj_ids,
              ),
     test=dict(type=dataset_type,
               data_root=data_root,
@@ -227,11 +227,11 @@ data = dict(
               modality=input_modality,
               sequential=sequential,
               n_times=n_times,
-              train_adj_ids=[1, 3, 5],
+              train_adj_ids=adj_ids,
               max_interval=10,
               min_interval=0,
               test_adj='prev',
-              test_adj_ids=[1, 3, 5],
+              test_adj_ids=adj_ids,
               ),
     shuffler_sampler=dict(type='DistributedGroupSampler'),
     nonshuffler_sampler=dict(type='DistributedSampler')
@@ -242,7 +242,7 @@ optimizer = dict(
     lr=2e-4,
     paramwise_cfg=dict(
         custom_keys={
-            'img_backbone': dict(lr_mult=0.1, decay_mult=1.0),
+            'backbone': dict(lr_mult=0.1, decay_mult=1.0),
         }),
     weight_decay=0.01)
 optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
@@ -262,7 +262,7 @@ total_epochs = 24
 evaluation = dict(interval=24, pipeline=test_pipeline)
 
 runner = dict(type='EpochBasedRunner', max_epochs=total_epochs)
-load_from = '../ckpts/cascade_mask_rcnn_r50_fpn_coco-mstrain_3x_20e_nuim_bbox_mAP_0.5400_segm_mAP_0.4300.pth'
+load_from = '../ckpts/cascade_mask_rcnn_r101_fpn_1x_nuim_20201024_134804-45215b1e.pth'
 log_config = dict(
     interval=50,
     hooks=[
