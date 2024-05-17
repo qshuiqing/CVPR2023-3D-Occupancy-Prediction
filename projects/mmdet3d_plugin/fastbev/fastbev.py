@@ -115,8 +115,14 @@ class FastBEV(BaseDetector):
         # (1,64,200,200)
         x = self.img_view_transformer(mlvl_feats, img_metas)
 
-        # (1,256,200,200)
-        x = self.bev_encoder(x)
+        def _inner_forward(x):  # (1,256,200,200)
+            out = self.bev_encoder(x)
+            return out
+
+        if self.with_cp and x.requires_grad:
+            x = cp.checkpoint(_inner_forward, x)
+        else:
+            x = _inner_forward(x)
 
         return x
 

@@ -76,8 +76,11 @@ samples_per_gpu = 1
 n_times = len(adj_ids) + 1 if sequential else 1
 multi_scale_id = [0, 1, 2]  # 4x/8x/16x
 
+with_cp = True
+
 model = dict(
     type='FastBEV',
+    with_cp=with_cp,
     multi_scale_id=multi_scale_id,  # 4x
     use_img_feat_encoder=use_img_feat_encoder,
     img_backbone=dict(
@@ -92,7 +95,7 @@ model = dict(
         dcn=dict(type='DCNv2', deform_groups=1, fallback_on_stride=False),
         # original DCNv2 will print log when perform load_state_dict
         stage_with_dcn=(False, False, True, True),
-        with_cp=True,
+        with_cp=with_cp,
     ),
     img_neck=dict(
         type='FPN',
