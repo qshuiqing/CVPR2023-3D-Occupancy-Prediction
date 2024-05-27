@@ -14,14 +14,14 @@ img_norm_cfg = dict(mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375],
 
 data_config = {
     'src_size': (900, 1600),
-    'input_size': (928, 1600),
+    'input_size': (256, 704),
     # train-aug
     'resize': (-0.06, 0.11),
     'crop': (-0.05, 0.05),
     'rot': (-5.4, 5.4),
     'flip': True,
     # test-aug
-    'test_input_size': (928, 1600),
+    'test_input_size': (256, 704),
     'test_resize': 0.0,
     'test_rotate': 0.0,
     'test_flip': False,
@@ -51,9 +51,11 @@ input_modality = dict(
     use_map=False,
     use_external=False)
 
+_dim_ = 256
+
 # 消融实验时会有某些参数未使用报错，设置为True忽略错误
 # 不能与 with_cp = True 共同使用
-# find_unused_parameters = True
+find_unused_parameters = True
 
 # 是否使用 img feat encoder
 use_img_feat_encoder = True
@@ -67,14 +69,15 @@ use_attention = True
 # 是否开启时间融合
 sequential = True
 # 融合帧数
-adj_ids = [1, 3, 5]  # 3帧
+adj_ids = [1,3,5]  # 3帧
 
 # batch_size
-samples_per_gpu = 1
+samples_per_gpu = 3
 
 # 勿动
 n_times = len(adj_ids) + 1 if sequential else 1
-multi_scale_id = [0, 1]  # 4x/8x/16x
+multi_scale_id = [0, 1, 2]  # 4x/8x/16x
+# multi_scale_id = [0, 1]
 
 model = dict(
     type='FastBEV',
@@ -82,27 +85,22 @@ model = dict(
     use_img_feat_encoder=use_img_feat_encoder,
     img_backbone=dict(
         type='ResNet',
-        depth=101,
+        depth=50,
         num_stages=4,
-        out_indices=(1, 2, 3),
+        out_indices=(0, 1, 2, 3),
         frozen_stages=1,
-        norm_cfg=dict(type='BN2d', requires_grad=False),
+        norm_cfg=dict(type='SyncBN', requires_grad=True),
         norm_eval=True,
-        style='pytorch',
-        dcn=dict(type='DCNv2', deform_groups=1, fallback_on_stride=False),
-        # original DCNv2 will print log when perform load_state_dict
-        stage_with_dcn=(False, False, True, True),
-        with_cp=True,
+        init_cfg=dict(type='Pretrained', checkpoint='torchvision://resnet50'),
+        style='pytorch'
     ),
     img_neck=dict(
         type='FPN',
-        in_channels=[512, 1024, 2048],
+        norm_cfg=dict(type='SyncBN', requires_grad=True),
+        in_channels=[256, 512, 1024, 2048],
         out_channels=64,
-        start_level=0,
-        add_extra_convs='on_output',
-        num_outs=3,
-        relu_before_extra_convs=True),
-    neck_fuse=dict(in_channels=[192, 128], out_channels=[64, 64]),
+        num_outs=4),
+    neck_fuse=dict(in_channels=[256, 192, 128], out_channels=[64, 64, 64]),
     img_view_transformer=dict(
         type='FastOccLSViewTransformer',
         in_channels=64 * n_times * 8,  # (c,n_times,dz)
@@ -110,12 +108,12 @@ model = dict(
         n_voxels=[
             [200, 200, 8],  # 4x
             [150, 150, 8],  # 8x
-            # [100, 100, 8],  # 16x
+            [100, 100, 8],  # 16x
         ],
         voxel_size=[
             [0.4, 0.4, 0.8],  # 4x
             [8 / 15, 8 / 15, 0.8],  # 8x
-            # [0.8, 0.8, 0.8],  # 16x
+            [0.8, 0.8, 0.8],  # 16x
         ],
         back_project='mean',
         extrinsic_noise=0,
@@ -137,8 +135,8 @@ model = dict(
         bev_w=200,
         pillar_h=16,
         num_classes=18,
-        in_dims=256,
-        out_dim=256,
+        in_dims=_dim_,
+        out_dim=_dim_,
         use_mask=True,
         loss_occ=dict(
             type='CrossEntropyLoss',
@@ -180,11 +178,11 @@ test_pipeline = [
 
 data = dict(
     samples_per_gpu=samples_per_gpu,
-    workers_per_gpu=64,
+    workers_per_gpu=4,
     train=dict(
         type=dataset_type,
         data_root=data_root,
-        ann_file=data_root + 'fastocc_infos_temporal_train.pkl',
+        ann_file=data_root + 'pkl/fastocc_infos_temporal_train.pkl',
         pipeline=train_pipeline,
         classes=class_names,
         modality=input_modality,
@@ -203,7 +201,7 @@ data = dict(
         box_type_3d='LiDAR'),
     val=dict(type=dataset_type,
              data_root=data_root,
-             ann_file=data_root + 'fastocc_infos_temporal_val.pkl',
+             ann_file=data_root + 'pkl/fastocc_infos_temporal_val.pkl',
              pipeline=test_pipeline,
              classes=class_names,
              modality=input_modality,
@@ -218,7 +216,7 @@ data = dict(
              ),
     test=dict(type=dataset_type,
               data_root=data_root,
-              ann_file=data_root + 'fastocc_infos_temporal_val.pkl',
+              ann_file=data_root + 'pkl/fastocc_infos_temporal_val.pkl',
               pipeline=test_pipeline,
               classes=class_names,
               modality=input_modality,
@@ -239,7 +237,7 @@ optimizer = dict(
     lr=2e-4,
     paramwise_cfg=dict(
         custom_keys={
-            'backbone': dict(lr_mult=0.1, decay_mult=1.0),
+            'img_backbone': dict(lr_mult=0.1, decay_mult=1.0),
         }),
     weight_decay=0.01)
 optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
@@ -256,10 +254,10 @@ lr_config = dict(
 )
 
 total_epochs = 24
-evaluation = dict(interval=24, pipeline=test_pipeline)
+evaluation = dict(interval=1, pipeline=test_pipeline)
 
 runner = dict(type='EpochBasedRunner', max_epochs=total_epochs)
-load_from = './ckpts/cascade_mask_rcnn_r101_fpn_1x_nuim_20201024_134804-45215b1e.pth'
+load_from = 'ckpts/cascade_mask_rcnn_r50_fpn_coco-mstrain_3x_20e_nuim_bbox_mAP_0.5400_segm_mAP_0.4300.pth'
 log_config = dict(
     interval=50,
     hooks=[
@@ -267,7 +265,7 @@ log_config = dict(
         dict(type='TensorboardLoggerHook')
     ])
 
-checkpoint_config = dict(interval=1, max_keep_ckpts=2)
+checkpoint_config = dict(interval=1, max_keep_ckpts=1)
 
 # fp16 settings, the loss scale is specifically tuned to avoid Nan
 fp16 = dict(loss_scale='dynamic')
@@ -278,6 +276,6 @@ custom_hooks = [
         init_updates=10560,
         priority='NORMAL',
         interval=1,  # save only at epochs 2,4,6,...
-        # resume='../work_dirs/efficient_occ_base_r50_e24_bda/epoch_20_ema.pth'
+        # resume='../work_dirs/efficient_occ_base_r50_e24_bda/epoch_13_ema.pth'
     ),
 ]

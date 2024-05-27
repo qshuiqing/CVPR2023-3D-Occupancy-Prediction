@@ -58,10 +58,10 @@ _dim_ = 256
 find_unused_parameters = True
 
 # 是否使用 img feat encoder
-use_img_feat_encoder = True
+use_img_feat_encoder = False
 
 # 是否使用 multi-scale bev fusion
-use_multi_bev = True
+use_multi_bev = False
 
 # 是否使用 height-attention
 use_attention = False
@@ -69,7 +69,7 @@ use_attention = False
 # 是否开启时间融合
 sequential = True
 # 融合帧数
-adj_ids = [1, 3, 5]  # 3帧
+adj_ids = [1,]  # 3帧
 
 # batch_size
 samples_per_gpu = 3
@@ -189,12 +189,12 @@ data = dict(
         use_valid_flag=True,
         sequential=True,
         n_times=n_times,
-        train_adj_ids=[1, 3, 5],
+        train_adj_ids=adj_ids,
         max_interval=10,
         min_interval=0,
         prev_only=True,
         test_adj='prev',
-        test_adj_ids=[1, 3, 5],
+        test_adj_ids=adj_ids,
         # we use box_type_3d='LiDAR' in kitti and nuscenes dataset
         # and box_type_3d='Depth' in sunrgbd and scannet dataset.
         box_type_3d='LiDAR'),
@@ -207,11 +207,11 @@ data = dict(
              samples_per_gpu=1,
              sequential=True,
              n_times=n_times,
-             train_adj_ids=[1, 3, 5],
+             train_adj_ids=adj_ids,
              max_interval=10,
              min_interval=0,
              test_adj='prev',
-             test_adj_ids=[1, 3, 5],
+             test_adj_ids=adj_ids,
              ),
     test=dict(type=dataset_type,
               data_root=data_root,
@@ -221,11 +221,11 @@ data = dict(
               modality=input_modality,
               sequential=sequential,
               n_times=n_times,
-              train_adj_ids=[1, 3, 5],
+              train_adj_ids=adj_ids,
               max_interval=10,
               min_interval=0,
               test_adj='prev',
-              test_adj_ids=[1, 3, 5],
+              test_adj_ids=adj_ids,
               ),
     shuffler_sampler=dict(type='DistributedGroupSampler'),
     nonshuffler_sampler=dict(type='DistributedSampler')
@@ -264,7 +264,7 @@ log_config = dict(
         dict(type='TensorboardLoggerHook')
     ])
 
-checkpoint_config = dict(interval=1, max_keep_ckpts=2)
+checkpoint_config = dict(interval=1, max_keep_ckpts=1)
 
 # fp16 settings, the loss scale is specifically tuned to avoid Nan
 fp16 = dict(loss_scale='dynamic')
@@ -275,6 +275,5 @@ custom_hooks = [
         init_updates=10560,
         priority='NORMAL',
         interval=1,  # save only at epochs 2,4,6,...
-        # resume='../work_dirs/efficient_occ_base_r50_e24_bda/epoch_20_ema.pth'
     ),
 ]

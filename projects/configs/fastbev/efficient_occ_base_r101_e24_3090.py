@@ -14,14 +14,14 @@ img_norm_cfg = dict(mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375],
 
 data_config = {
     'src_size': (900, 1600),
-    'input_size': (928, 1600),
+    'input_size': (640, 1600),
     # train-aug
     'resize': (-0.06, 0.11),
     'crop': (-0.05, 0.05),
     'rot': (-5.4, 5.4),
     'flip': True,
     # test-aug
-    'test_input_size': (928, 1600),
+    'test_input_size': (640, 1600),
     'test_resize': 0.0,
     'test_rotate': 0.0,
     'test_flip': False,
@@ -74,7 +74,7 @@ samples_per_gpu = 1
 
 # 勿动
 n_times = len(adj_ids) + 1 if sequential else 1
-multi_scale_id = [0, 1]  # 4x/8x/16x
+multi_scale_id = [0, 1, 2]  # 4x/8x/16x
 
 model = dict(
     type='FastBEV',
@@ -84,7 +84,7 @@ model = dict(
         type='ResNet',
         depth=101,
         num_stages=4,
-        out_indices=(1, 2, 3),
+        out_indices=(0, 1, 2, 3),
         frozen_stages=1,
         norm_cfg=dict(type='BN2d', requires_grad=False),
         norm_eval=True,
@@ -96,26 +96,26 @@ model = dict(
     ),
     img_neck=dict(
         type='FPN',
-        in_channels=[512, 1024, 2048],
-        out_channels=64,
+        in_channels=[256, 512, 1024, 2048],
+        out_channels=128,
         start_level=0,
         add_extra_convs='on_output',
-        num_outs=3,
+        num_outs=4,
         relu_before_extra_convs=True),
-    neck_fuse=dict(in_channels=[192, 128], out_channels=[64, 64]),
+    neck_fuse=dict(in_channels=[512, 384, 256], out_channels=[128, 128 ,128]),
     img_view_transformer=dict(
         type='FastOccLSViewTransformer',
-        in_channels=64 * n_times * 8,  # (c,n_times,dz)
+        in_channels=128 * n_times * 8,  # (c,n_times,dz)
         out_channels=64,
         n_voxels=[
             [200, 200, 8],  # 4x
             [150, 150, 8],  # 8x
-            # [100, 100, 8],  # 16x
+            [100, 100, 8],  # 16x
         ],
         voxel_size=[
             [0.4, 0.4, 0.8],  # 4x
             [8 / 15, 8 / 15, 0.8],  # 8x
-            # [0.8, 0.8, 0.8],  # 16x
+            [0.8, 0.8, 0.8],  # 16x
         ],
         back_project='mean',
         extrinsic_noise=0,
@@ -180,7 +180,7 @@ test_pipeline = [
 
 data = dict(
     samples_per_gpu=samples_per_gpu,
-    workers_per_gpu=64,
+    workers_per_gpu=8,
     train=dict(
         type=dataset_type,
         data_root=data_root,
@@ -267,7 +267,7 @@ log_config = dict(
         dict(type='TensorboardLoggerHook')
     ])
 
-checkpoint_config = dict(interval=1, max_keep_ckpts=2)
+checkpoint_config = dict(interval=1, max_keep_ckpts=1)
 
 # fp16 settings, the loss scale is specifically tuned to avoid Nan
 fp16 = dict(loss_scale='dynamic')
