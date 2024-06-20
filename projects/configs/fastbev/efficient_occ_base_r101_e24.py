@@ -180,11 +180,11 @@ test_pipeline = [
 
 data = dict(
     samples_per_gpu=samples_per_gpu,
-    workers_per_gpu=64,
+    workers_per_gpu=8,
     train=dict(
         type=dataset_type,
         data_root=data_root,
-        ann_file=data_root + 'fastocc_infos_temporal_train.pkl',
+        ann_file=data_root + 'pkl/fastocc_infos_temporal_train.pkl',
         pipeline=train_pipeline,
         classes=class_names,
         modality=input_modality,
@@ -203,7 +203,7 @@ data = dict(
         box_type_3d='LiDAR'),
     val=dict(type=dataset_type,
              data_root=data_root,
-             ann_file=data_root + 'fastocc_infos_temporal_val.pkl',
+             ann_file=data_root + 'pkl/fastocc_infos_temporal_val.pkl',
              pipeline=test_pipeline,
              classes=class_names,
              modality=input_modality,
@@ -218,7 +218,7 @@ data = dict(
              ),
     test=dict(type=dataset_type,
               data_root=data_root,
-              ann_file=data_root + 'fastocc_infos_temporal_val.pkl',
+              ann_file=data_root + 'pkl/fastocc_infos_temporal_val.pkl',
               pipeline=test_pipeline,
               classes=class_names,
               modality=input_modality,
@@ -267,7 +267,7 @@ log_config = dict(
         dict(type='TensorboardLoggerHook')
     ])
 
-checkpoint_config = dict(interval=1, max_keep_ckpts=2)
+checkpoint_config = dict(interval=1, max_keep_ckpts=1)
 
 # fp16 settings, the loss scale is specifically tuned to avoid Nan
 fp16 = dict(loss_scale='dynamic')
@@ -278,6 +278,6 @@ custom_hooks = [
         init_updates=10560,
         priority='NORMAL',
         interval=1,  # save only at epochs 2,4,6,...
-        # resume='../work_dirs/efficient_occ_base_r50_e24_bda/epoch_20_ema.pth'
+        resume='./work_dirs/efficient_occ_base_r101_e24/epoch_15_ema.pth'
     ),
 ]
