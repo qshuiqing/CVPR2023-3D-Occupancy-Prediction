@@ -66,7 +66,6 @@ class ConvLSVT(BaseModule):
                  voxel_size,
                  in_channels,
                  out_channels,
-                 back_project,
 
                  n_multi_layer,
                  use_height_attention,
@@ -82,7 +81,6 @@ class ConvLSVT(BaseModule):
         self.voxel_size = voxel_size
         self.in_channels = in_channels
         self.out_channels = out_channels
-        self.back_project = back_project
         self.upsample_cfg = upsample_cfg
 
         self.n_multi_layer = n_multi_layer  # 多尺度层数
@@ -192,11 +190,11 @@ class ConvLSVT(BaseModule):
         # build top-down path
         num_layers = len(laterals)
         fused_bev = laterals[0]
-        for i in range(0, len(self.n_voxels)):  # [0, 1, 2]
-            next_shape = self.n_voxels[i + 1][0:2]
+        for i in range(1, len(self.n_voxels)):  # [1, 2]
+            next_shape = self.n_voxels[i][0:2]
             cur = F.interpolate(fused_bev, size=next_shape, **self.upsample_cfg)
             if num_layers > i:
-                fused_bev = cur + laterals[i + 1]
+                fused_bev = cur + laterals[i]
             else:
                 fused_bev = cur
 

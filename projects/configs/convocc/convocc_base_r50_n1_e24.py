@@ -81,7 +81,7 @@ multi_scale_id = [0, 1, 2]  # 4x/8x/16x
 # Configuration
 
 # 多尺度层数
-n_multi_layer = 3
+n_multi_layer = 1
 
 # 是否使用高度注意力
 use_height_attention = True
@@ -280,7 +280,8 @@ custom_hooks = [
         type='MEGVIIEMAHook',
         init_updates=10560,
         priority='NORMAL',
-        interval=1,  # save only at epochs 2,4,6,...
-        # resume='../work_dirs/efficient_occ_base_r50_e24_bda/epoch_13_ema.pth'
+        interval=1,
     ),
 ]
+
+# r50 + multi-layer x 1 + epochs x 24

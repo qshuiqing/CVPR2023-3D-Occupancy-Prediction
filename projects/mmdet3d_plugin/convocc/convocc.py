@@ -135,11 +135,11 @@ class ConvOcc(BaseDetector):
                       **kwargs):
 
         # (1,256,200,200) - bs,c,dx,dy
-        feature_bev = self.extract_feat(img, img_metas)
+        bev_feats = self.extract_feat(img, img_metas)
 
         losses = dict()
         if self.bbox_head is not None:
-            x = self.bbox_head(feature_bev)
+            x = self.bbox_head(bev_feats)
             loss_occ = self.bbox_head.loss(voxel_semantics, mask_camera, x)
             losses.update(loss_occ)
 
