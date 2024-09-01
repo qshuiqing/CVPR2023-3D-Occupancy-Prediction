@@ -14,15 +14,15 @@ from mmseg.ops import resize
 @DETECTORS.register_module()
 class ConvOcc(BaseDetector):
     def __init__(self,
+                 # Modules
                  img_backbone,
                  img_neck,
                  neck_fuse,
-                 # view transformer
                  img_view_transformer,
-                 # bev encoder
                  img_bev_encoder_backbone,
                  img_bev_encoder_neck,
                  bbox_head,
+
                  init_cfg=None,
                  multi_scale_id=None,
                  use_img_feat_encoder=True,
