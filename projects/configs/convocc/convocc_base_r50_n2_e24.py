@@ -57,6 +57,9 @@ _dim_ = 256
 # 不能与 with_cp = True 共同使用
 find_unused_parameters = True
 
+# 是否使用 img feat encoder
+use_img_feat_encoder = True
+
 # batch_size
 samples_per_gpu = 3
 
@@ -64,11 +67,8 @@ samples_per_gpu = 3
 
 # Configuration
 
-# FFM
-use_ffm = True
-
 # 多尺度层数
-n_multi_layer = 1
+n_multi_layer = 2
 
 # 是否使用高度注意力
 use_height_attention = True
@@ -87,7 +87,7 @@ multi_scale_id = [0, 1, 2]  # 4x/8x/16x
 model = dict(
     type='ConvOcc',
     multi_scale_id=multi_scale_id,  # 4x
-    use_img_feat_encoder=use_ffm,
+    use_img_feat_encoder=use_img_feat_encoder,
     img_backbone=dict(
         type='ResNet',
         depth=50,
@@ -255,7 +255,7 @@ lr_config = dict(
 )
 
 total_epochs = 24
-evaluation = dict(interval=24, pipeline=test_pipeline)
+evaluation = dict(interval=4, pipeline=test_pipeline)
 
 runner = dict(type='EpochBasedRunner', max_epochs=total_epochs)
 load_from = 'ckpts/cascade_mask_rcnn_r50_fpn_coco-mstrain_3x_20e_nuim_bbox_mAP_0.5400_segm_mAP_0.4300.pth'
@@ -280,52 +280,45 @@ custom_hooks = [
     ),
 ]
 
-# r50 + multi-layer x 1 + epochs x 24 + t0
-
+# r50 + multi-layer x 2 + epochs x 24
 # epoch_24.pth
-
+# ===> per class IoU of 6019 samples:
+# ===> others - IoU = 7.95
+# ===> barrier - IoU = 43.75
+# ===> bicycle - IoU = 20.08
+# ===> bus - IoU = 41.32
+# ===> car - IoU = 46.96
+# ===> construction_vehicle - IoU = 19.84
+# ===> motorcycle - IoU = 21.78
+# ===> pedestrian - IoU = 17.18
+# ===> traffic_cone - IoU = 12.14
+# ===> trailer - IoU = 32.56
+# ===> truck - IoU = 33.68
+# ===> driveable_surface - IoU = 80.96
+# ===> other_flat - IoU = 42.96
+# ===> sidewalk - IoU = 51.21
+# ===> terrain - IoU = 54.38
+# ===> manmade - IoU = 39.74
+# ===> vegetation - IoU = 35.04
+# ===> mIoU of 6019 samples: 35.38
 
 # epoch_24_ema.pth
-
-
-# epoch_24.pth + t3
 # ===> per class IoU of 6019 samples:
-# ===> others - IoU = 7.85
-# ===> barrier - IoU = 41.64
-# ===> bicycle - IoU = 18.35
-# ===> bus - IoU = 40.08
-# ===> car - IoU = 45.23
-# ===> construction_vehicle - IoU = 19.84
-# ===> motorcycle - IoU = 20.71
-# ===> pedestrian - IoU = 15.86
-# ===> traffic_cone - IoU = 10.37
-# ===> trailer - IoU = 30.41
-# ===> truck - IoU = 33.48
-# ===> driveable_surface - IoU = 80.6
-# ===> other_flat - IoU = 41.92
-# ===> sidewalk - IoU = 50.55
-# ===> terrain - IoU = 54.65
-# ===> manmade - IoU = 39.12
-# ===> vegetation - IoU = 34.64
-# ===> mIoU of 6019 samples: 34.43
-
-# epoch_24_ema.pth + t3
-# ===> per class IoU of 6019 samples:
-# ===> others - IoU = 7.91
-# ===> barrier - IoU = 41.86
-# ===> bicycle - IoU = 18.43
-# ===> bus - IoU = 40.35
-# ===> car - IoU = 45.24
-# ===> construction_vehicle - IoU = 19.91
-# ===> motorcycle - IoU = 20.7
-# ===> pedestrian - IoU = 16.23
-# ===> traffic_cone - IoU = 10.82
-# ===> trailer - IoU = 30.56
-# ===> truck - IoU = 33.47
-# ===> driveable_surface - IoU = 80.57
-# ===> other_flat - IoU = 41.91
-# ===> sidewalk - IoU = 50.62
-# ===> terrain - IoU = 54.72
-# ===> manmade - IoU = 38.95
-# ===> vegetation - IoU = 34.6
-# ===> mIoU of 6019 samples: 34.52
+# ===> others - IoU = 8.29
+# ===> barrier - IoU = 43.83
+# ===> bicycle - IoU = 20.07
+# ===> bus - IoU = 41.46
+# ===> car - IoU = 46.88
+# ===> construction_vehicle - IoU = 19.79
+# ===> motorcycle - IoU = 21.88
+# ===> pedestrian - IoU = 17.52
+# ===> traffic_cone - IoU = 12.4
+# ===> trailer - IoU = 32.76
+# ===> truck - IoU = 33.84
+# ===> driveable_surface - IoU = 80.89
+# ===> other_flat - IoU = 42.9
+# ===> sidewalk - IoU = 51.28
+# ===> terrain - IoU = 54.45
+# ===> manmade - IoU = 39.66
+# ===> vegetation - IoU = 35.04
+# ===> mIoU of 6019 samples: 35.47
