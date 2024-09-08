@@ -1,17 +1,22 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import argparse
+import sys
 import time
+
 import torch
 from mmcv import Config
 from mmcv.parallel import MMDataParallel
 from mmcv.runner import load_checkpoint, wrap_fp16_model
-import sys
+
 sys.path.append('.')
 from projects.mmdet3d_plugin.datasets.builder import build_dataloader
 from projects.mmdet3d_plugin.datasets import custom_build_dataset
 # from mmdet3d.datasets import build_dataloader, build_dataset
 from mmdet3d.models import build_detector
-#from tools.misc.fuse_conv_bn import fuse_module
+from torch.cuda.amp import autocast
+
+
+# from tools.misc.fuse_conv_bn import fuse_module
 
 
 def parse_args():
@@ -25,7 +30,7 @@ def parse_args():
         '--fuse-conv-bn',
         action='store_true',
         help='Whether to fuse conv and bn, this will slightly increase'
-        'the inference speed')
+             'the inference speed')
     args = parser.parse_args()
     return args
 
@@ -59,7 +64,7 @@ def main():
         wrap_fp16_model(model)
     if args.checkpoint is not None:
         load_checkpoint(model, args.checkpoint, map_location='cpu')
-    #if args.fuse_conv_bn:
+    # if args.fuse_conv_bn:
     #    model = fuse_module(model)
 
     model = MMDataParallel(model, device_ids=[0])
@@ -72,11 +77,15 @@ def main():
 
     # benchmark with several samples and take the average
     for i, data in enumerate(data_loader):
+
+        img = data['img'].data[0].cuda()
+        conv = model.module
+
         torch.cuda.synchronize()
         start_time = time.perf_counter()
         with torch.no_grad():
-            model(return_loss=False, rescale=True, **data)
-
+            with autocast(enabled=True):
+                mlvl_feats = conv.extract_img_feat(img)
         torch.cuda.synchronize()
         elapsed = time.perf_counter() - start_time
 

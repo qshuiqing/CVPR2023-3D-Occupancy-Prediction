@@ -70,6 +70,23 @@ class FastBEV(BaseDetector):
 
     def extract_feat(self, img, img_metas=None):
 
+        mlvl_feats = self.extract_img_feat(img)
+
+        # (1,64,200,200)
+        x = self.img_view_transformer(mlvl_feats, img_metas)
+
+        def _inner_forward(x):  # (1,256,200,200)
+            out = self.bev_encoder(x)
+            return out
+
+        if self.with_cp and x.requires_grad:
+            x = cp.checkpoint(_inner_forward, x)
+        else:
+            x = _inner_forward(x)
+
+        return x
+
+    def extract_img_feat(self, img):
         # (4,24,3,900,1600)->(24,3,900,1600)
         img = img.view([-1] + list(img.shape)[2:])
         # (24,256*i,64/i,176/i) i=1,2,4,8
@@ -85,7 +102,6 @@ class FastBEV(BaseDetector):
         else:  # (24,64,64/i,176/i),i=1,2,4,8
             mlvl_feats = _inner_forward(x)
         mlvl_feats = list(mlvl_feats)
-
         if self.use_img_feat_encoder:  # 是否开启 image feat encoder
             mlvl_feats_ = []
             for msid in range(self.encoder_layers):
@@ -111,20 +127,7 @@ class FastBEV(BaseDetector):
             mlvl_feats = mlvl_feats_  # (24,64,64/i,176/i),i=1,2,4
         else:
             mlvl_feats = mlvl_feats[:3]
-
-        # (1,64,200,200)
-        x = self.img_view_transformer(mlvl_feats, img_metas)
-
-        def _inner_forward(x):  # (1,256,200,200)
-            out = self.bev_encoder(x)
-            return out
-
-        if self.with_cp and x.requires_grad:
-            x = cp.checkpoint(_inner_forward, x)
-        else:
-            x = _inner_forward(x)
-
-        return x
+        return mlvl_feats
 
     def forward_train(self,
                       img,  # (1,24,3,256,704)

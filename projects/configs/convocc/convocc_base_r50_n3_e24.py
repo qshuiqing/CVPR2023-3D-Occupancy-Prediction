@@ -64,7 +64,7 @@ use_img_feat_encoder = True
 # use_multi_bev = True
 
 # 是否开启时间融合
-sequential = True
+sequential = False
 # 融合帧数
 adj_ids = [1, 3, 5]  # 3帧
 
@@ -84,7 +84,7 @@ multi_scale_id = [0, 1, 2]  # 4x/8x/16x
 n_multi_layer = 3
 
 # 是否使用高度注意力
-use_height_attention = True
+use_height_attention = False
 
 ###############################################
 

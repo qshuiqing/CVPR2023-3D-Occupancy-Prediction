@@ -64,10 +64,10 @@ use_img_feat_encoder = True
 use_multi_bev = True
 
 # 是否使用 height-attention
-use_attention = True
+use_attention = False
 
 # 是否开启时间融合
-sequential = True
+sequential = False
 # 融合帧数
 adj_ids = [1,3,5]  # 3帧
 
