@@ -69,7 +69,7 @@ adj_ids = [1, 3, 5][:n_frame - 1]
 ############################################
 
 model = dict(
-    type='FastBEV',
+    type='ConvOcc',
     multi_scale_id=multi_scale_id,  # 4x
     img_backbone=dict(
         type='ResNet',
@@ -180,7 +180,7 @@ data = dict(
         min_interval=0,
         prev_only=True,
         test_adj='prev',
-        test_adj_ids=[1],  # [1, 3, 5]
+        test_adj_ids=adj_ids,  # [1, 3, 5]
         # we use box_type_3d='LiDAR' in kitti and nuscenes dataset
         # and box_type_3d='Depth' in sunrgbd and scannet dataset.
         box_type_3d='LiDAR'),
@@ -197,7 +197,7 @@ data = dict(
              max_interval=10,
              min_interval=0,
              test_adj='prev',
-             test_adj_ids=[1],  # [1, 3, 5]
+             test_adj_ids=adj_ids,  # [1, 3, 5]
              ),
     test=dict(type=dataset_type,
               data_root=data_root,
@@ -211,7 +211,7 @@ data = dict(
               max_interval=10,
               min_interval=0,
               test_adj='prev',
-              test_adj_ids=[1],  # [1, 3, 5]
+              test_adj_ids=adj_ids,  # [1, 3, 5]
               ),
     shuffler_sampler=dict(type='DistributedGroupSampler'),
     nonshuffler_sampler=dict(type='DistributedSampler')

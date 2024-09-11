@@ -69,7 +69,7 @@ adj_ids = [1, 3, 5][:n_frame - 1]
 ############################################
 
 model = dict(
-    type='FastBEV',
+    type='ConvOcc',
     multi_scale_id=multi_scale_id,  # 4x
     img_backbone=dict(
         type='ResNet',
