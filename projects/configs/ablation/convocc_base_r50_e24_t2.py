@@ -56,8 +56,8 @@ _dim_ = 256
 multi_scale_id = [0, 1, 2]  # 4x/8x/16x
 
 sequential = True
-n_times = 4
-samples_per_gpu = 3
+n_times = 2
+samples_per_gpu = 2
 
 model = dict(
     type='FastBEV',
@@ -167,12 +167,12 @@ data = dict(
         use_valid_flag=True,
         sequential=True,
         n_times=n_times,
-        train_adj_ids=[1, 3, 5],
+        train_adj_ids=[1],  # [1, 3, 5]
         max_interval=10,
         min_interval=0,
         prev_only=True,
         test_adj='prev',
-        test_adj_ids=[1, 3, 5],
+        test_adj_ids=[1],  # [1, 3, 5]
         # we use box_type_3d='LiDAR' in kitti and nuscenes dataset
         # and box_type_3d='Depth' in sunrgbd and scannet dataset.
         box_type_3d='LiDAR'),
@@ -185,11 +185,11 @@ data = dict(
              samples_per_gpu=1,
              sequential=True,
              n_times=n_times,
-             train_adj_ids=[1, 3, 5],
+             train_adj_ids=[1],  # [1, 3, 5]
              max_interval=10,
              min_interval=0,
              test_adj='prev',
-             test_adj_ids=[1, 3, 5],
+             test_adj_ids=[1],  # [1, 3, 5]
              ),
     test=dict(type=dataset_type,
               data_root=data_root,
@@ -199,11 +199,11 @@ data = dict(
               modality=input_modality,
               sequential=sequential,
               n_times=n_times,
-              train_adj_ids=[1, 3, 5],
+              train_adj_ids=[1],  # [1, 3, 5]
               max_interval=10,
               min_interval=0,
               test_adj='prev',
-              test_adj_ids=[1, 3, 5],
+              test_adj_ids=[1],  # [1, 3, 5]
               ),
     shuffler_sampler=dict(type='DistributedGroupSampler'),
     nonshuffler_sampler=dict(type='DistributedSampler')
@@ -231,7 +231,7 @@ lr_config = dict(
 )
 
 total_epochs = 24
-evaluation = dict(start=20, interval=1, pipeline=test_pipeline)
+evaluation = dict(start=24, interval=1, pipeline=test_pipeline)
 
 runner = dict(type='EpochBasedRunner', max_epochs=total_epochs)
 load_from = 'ckpts/cascade_mask_rcnn_r50_fpn_coco-mstrain_3x_20e_nuim_bbox_mAP_0.5400_segm_mAP_0.4300.pth'
@@ -245,7 +245,7 @@ log_config = dict(
 checkpoint_config = dict(interval=1, max_keep_ckpts=2)
 
 # fp16 settings, the loss scale is specifically tuned to avoid Nan
-fp16 = dict(loss_scale='dynamic')
+# fp16 = dict(loss_scale='dynamic')
 
 custom_hooks = [
     dict(
@@ -253,6 +253,48 @@ custom_hooks = [
         init_updates=10560,
         priority='NORMAL',
         interval=1,  # save only at epochs 2,4,6,...
-        resume='../work_dirs/efficient_occ_base_r50_e24_bda/epoch_20_ema.pth'
     ),
 ]
+
+# r50 + height + 24e + t2
+# epoch_24.pth
+# ===> per class IoU of 6019 samples:
+# ===> others - IoU = 7.9
+# ===> barrier - IoU = 42.51
+# ===> bicycle - IoU = 16.73
+# ===> bus - IoU = 42.53
+# ===> car - IoU = 47.62
+# ===> construction_vehicle - IoU = 19.13
+# ===> motorcycle - IoU = 20.39
+# ===> pedestrian - IoU = 18.76
+# ===> traffic_cone - IoU = 13.06
+# ===> trailer - IoU = 32.09
+# ===> truck - IoU = 33.95
+# ===> driveable_surface - IoU = 79.96
+# ===> other_flat - IoU = 40.31
+# ===> sidewalk - IoU = 49.86
+# ===> terrain - IoU = 53.59
+# ===> manmade - IoU = 39.44
+# ===> vegetation - IoU = 33.63
+# ===> mIoU of 6019 samples: 34.79
+
+# epoch_24_ema.pth
+# ===> per class IoU of 6019 samples:
+# ===> others - IoU = 8.01
+# ===> barrier - IoU = 42.59
+# ===> bicycle - IoU = 17.25
+# ===> bus - IoU = 42.6
+# ===> car - IoU = 47.69
+# ===> construction_vehicle - IoU = 19.09
+# ===> motorcycle - IoU = 20.56
+# ===> pedestrian - IoU = 18.68
+# ===> traffic_cone - IoU = 13.06
+# ===> trailer - IoU = 32.29
+# ===> truck - IoU = 33.95
+# ===> driveable_surface - IoU = 79.97
+# ===> other_flat - IoU = 40.31
+# ===> sidewalk - IoU = 49.92
+# ===> terrain - IoU = 53.69
+# ===> manmade - IoU = 39.3
+# ===> vegetation - IoU = 33.57
+# ===> mIoU of 6019 samples: 34.85
