@@ -74,11 +74,11 @@ def main():
     num_warmup = 5
     pure_inf_time = 0
 
+    model = model.module
     # benchmark with several samples and take the average
     for i, data in enumerate(data_loader):
 
         img = data['img'].data[0].cuda()
-        model = model.module
 
         torch.cuda.synchronize()
         start_time = time.perf_counter()

@@ -63,7 +63,7 @@ use_height_attention = False
 
 # 是否使用时间帧
 use_sequential = True
-n_frame = 2  # 1 + 3
+n_frame = 1  # 1 + 3
 adj_ids = [1, 3, 5][:n_frame - 1]
 
 ############################################

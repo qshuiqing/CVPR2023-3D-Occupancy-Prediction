@@ -70,6 +70,17 @@ class FastBEV(BaseDetector):
 
     def extract_feat(self, img, img_metas=None):
 
+        mlvl_feats = self.extract_img_feat(img)
+
+        # (1,64,200,200)
+        x = self.img_view_transformer(mlvl_feats, img_metas)
+
+        # (1,256,200,200)
+        x = self.bev_encoder(x)
+
+        return x
+
+    def extract_img_feat(self, img):
         # (4,24,3,900,1600)->(24,3,900,1600)
         img = img.view([-1] + list(img.shape)[2:])
         # (24,256*i,64/i,176/i) i=1,2,4,8
@@ -85,7 +96,6 @@ class FastBEV(BaseDetector):
         else:  # (24,64,64/i,176/i),i=1,2,4,8
             mlvl_feats = _inner_forward(x)
         mlvl_feats = list(mlvl_feats)
-
         if self.multi_scale_id is not None:  # [0,1,2]
             mlvl_feats_ = []
             for msid in self.multi_scale_id:
@@ -109,14 +119,7 @@ class FastBEV(BaseDetector):
                 else:
                     mlvl_feats_.append(mlvl_feats[msid])
             mlvl_feats = mlvl_feats_  # (24,64,64/i,176/i),i=1,2,4
-
-        # (1,64,200,200)
-        x = self.img_view_transformer(mlvl_feats, img_metas)
-
-        # (1,256,200,200)
-        x = self.bev_encoder(x)
-
-        return x
+        return mlvl_feats
 
     def forward_train(self,
                       img,  # (1,24,3,256,704)

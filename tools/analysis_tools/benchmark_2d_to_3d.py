@@ -74,13 +74,13 @@ def main():
     num_warmup = 5
     pure_inf_time = 0
 
-    img_view_transformer = model.module.img_view_transformer
+    model = model.module
+    img_view_transformer = model.img_view_transformer
     # benchmark with several samples and take the average
     for i, data in enumerate(data_loader):
 
         img = data['img'].data[0].cuda()
         img_metas = data['img_metas'].data[0]
-        model = model.module
 
         with torch.no_grad():
             mlvl_feats = model.extract_img_feat(img)
