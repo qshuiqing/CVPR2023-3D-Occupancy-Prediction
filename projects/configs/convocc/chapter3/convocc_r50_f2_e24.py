@@ -264,7 +264,7 @@ custom_hooks = [
     ),
 ]
 
-# r50 + height + t4 + 24e
+# r50 + height + f2 + 24e
 # epoch_24.pth
 # ===> per class IoU of 6019 samples:
 # ===> others - IoU = 7.64

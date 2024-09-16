@@ -63,12 +63,11 @@ class BasicBlock(nn.Module):
 class ConvOccLSVT(BaseModule):
     def __init__(self,
                  n_voxels,
-                 voxel_size,
+                 pc_range,
                  in_channels,
                  out_channels,
                  use_height_attention,
 
-                 back_project,
                  conv_cfg=None,
                  norm_cfg=None,
                  act_cfg=None,
@@ -77,11 +76,9 @@ class ConvOccLSVT(BaseModule):
         super(ConvOccLSVT, self).__init__()
 
         self.n_voxels = n_voxels
-        self.voxel_size = voxel_size
-        self.in_channels = in_channels
-        self.out_channels = out_channels
+        self.pc_range = pc_range
+        self._init_points(pc_range, n_voxels)
 
-        self.back_project = back_project
         self.upsample_cfg = upsample_cfg
 
         # 高度注意力
@@ -113,6 +110,22 @@ class ConvOccLSVT(BaseModule):
             norm_cfg=norm_cfg,
             act_cfg=act_cfg,
             inplace=False)
+
+    def _init_points(self, pc_range, n_voxels):
+        x_min, y_min, z_min, x_max, y_max, z_max = pc_range
+        for i, n_voxel in enumerate(n_voxels):
+            x_voxels, y_voxels, z_voxels = n_voxel
+            x = torch.linspace(x_min, x_max, x_voxels + 1)
+            y = torch.linspace(y_min, y_max, y_voxels + 1)
+            z = torch.linspace(z_min, z_max, z_voxels + 1)
+
+            x_mid = (x[:-1] + x[1:]) / 2
+            y_mid = (y[:-1] + y[1:]) / 2
+            z_mid = (z[:-1] + z[1:]) / 2
+
+            xx, yy, zz = torch.meshgrid(x_mid, y_mid, z_mid, indexing='ij')
+            coords = torch.stack([xx, yy, zz], dim=0)
+            self.register_buffer(f'points_{i}', coords)
 
     @staticmethod
     def _compute_projection(img_meta, stride):
@@ -147,27 +160,18 @@ class ConvOccLSVT(BaseModule):
                     height = math.ceil(img_meta["img_shape"][0] / stride_i)
                     width = math.ceil(img_meta["img_shape"][1] / stride_i)
 
-                    # (6,3,4)
+                    # Ego to pixels. (6,3,4)
                     projection = self._compute_projection(img_meta, stride_i).to(feat_i.device)
 
-                    n_voxels, voxel_size = self.n_voxels[lvl], self.voxel_size[lvl]
-                    points = get_points(  # [3, vx, vy, vz]
-                        n_voxels=torch.tensor(n_voxels),
-                        voxel_size=torch.tensor(voxel_size),
-                        origin=torch.tensor(img_meta["origin"]),
-                    ).to(feat_i.device)
+                    # Sampling points.
+                    points = getattr(self, f'points_{lvl}')
 
-                    if self.back_project == 'inplace':
-                        volume = backproject_inplace(
-                            feat_i[:, :, :height, :width], points, projection)  # [c, vx, vy, vz]
-                    else:
-                        volume, valid = backproject_vanilla(
-                            feat_i[:, :, :height, :width], points, projection)
-                        volume = volume.sum(dim=0)
-                        valid = valid.sum(dim=0)
-                        volume = volume / valid
-                        valid = valid > 0
-                        volume[:, ~valid[0]] = 0.0
+                    volume, valid = self.backproject_vanilla(feat_i[:, :, :height, :width], points, projection)
+                    volume = volume.sum(dim=0)
+                    valid = valid.sum(dim=0)
+                    volume = volume / valid
+                    valid = valid > 0
+                    volume[:, ~valid[0]] = 0.0
 
                     volumes.append(volume)
                 volume_list.append(torch.stack(volumes))  # list([bs, c, vx, vy, vz])
@@ -204,89 +208,27 @@ class ConvOccLSVT(BaseModule):
 
         return out  # (1, 64, 200, 200)
 
-
-@torch.no_grad()
-def get_points(n_voxels, voxel_size, origin):
-    points = torch.stack(
-        torch.meshgrid(
-            [
-                torch.arange(n_voxels[0]),
-                torch.arange(n_voxels[1]),
-                torch.arange(n_voxels[2]),
-            ]
-        )
-    )
-    new_origin = origin - n_voxels / 2.0 * voxel_size + voxel_size / 2.0
-    points = points * voxel_size.view(3, 1, 1, 1) + new_origin.view(3, 1, 1, 1)
-    return points
-
-
-def backproject_vanilla(features, points, projection):
-    '''
-    function: 2d feature + predefined point cloud -> 3d volume
-    input:
-        features: [6, 64, 225, 400]
-        points: [3, 200, 200, 12]
-        projection: [6, 3, 4]
-    output:
-        volume: [6, 64, 200, 200, 12]
-        valid: [6, 1, 200, 200, 12]
-    '''
-    n_images, n_channels, height, width = features.shape
-    n_x_voxels, n_y_voxels, n_z_voxels = points.shape[-3:]
-    # [3, 200, 200, 12] -> [1, 3, 480000] -> [6, 3, 480000]
-    points = points.view(1, 3, -1).expand(n_images, 3, -1)
-    # [6, 3, 480000] -> [6, 4, 480000]
-    points = torch.cat((points, torch.ones_like(points[:, :1])), dim=1)
-    # ego_to_cam
-    # [6, 3, 4] * [6, 4, 480000] -> [6, 3, 480000]
-    points_2d_3 = torch.bmm(projection, points)  # lidar2img
-    x = (points_2d_3[:, 0] / points_2d_3[:, 2]).round().long()  # [6, 480000]
-    y = (points_2d_3[:, 1] / points_2d_3[:, 2]).round().long()  # [6, 480000]
-    z = points_2d_3[:, 2]  # [6, 480000]
-    valid = (x >= 0) & (y >= 0) & (x < width) & (y < height) & (z > 0)  # [6, 480000]
-    volume = torch.zeros(
-        (n_images, n_channels, points.shape[-1]), device=features.device
-    ).type_as(features)  # [6, 64, 480000]
-    for i in range(n_images):
-        volume[i, :, valid[i]] = features[i, :, y[i, valid[i]], x[i, valid[i]]]
-    # [6, 64, 480000] -> [6, 64, 200, 200, 12]
-    volume = volume.view(n_images, n_channels, n_x_voxels, n_y_voxels, n_z_voxels)
-    # [6, 480000] -> [6, 1, 200, 200, 12]
-    valid = valid.view(n_images, 1, n_x_voxels, n_y_voxels, n_z_voxels)
-    return volume, valid
-
-
-def backproject_inplace(features, points, projection):
-    '''
-    function: 2d feature + predefined point cloud -> 3d volume
-    input:
-        features: [6, 64, 225, 400]
-        points: [3, 200, 200, 12]
-        projection: [6, 3, 4]
-    output:
-        volume: [64, 200, 200, 12]
-    '''
-    n_images, n_channels, height, width = features.shape
-    n_x_voxels, n_y_voxels, n_z_voxels = points.shape[-3:]
-    # [3, 200, 200, 12] -> [1, 3, 480000] -> [6, 3, 480000]
-    points = points.view(1, 3, -1).expand(n_images, 3, -1)
-    # [6, 3, 480000] -> [6, 4, 480000]
-    points = torch.cat((points, torch.ones_like(points[:, :1])), dim=1)
-    # ego_to_cam
-    # [6, 3, 4] * [6, 4, 480000] -> [6, 3, 480000]
-    points_2d_3 = torch.bmm(projection, points)  # lidar2img
-    x = (points_2d_3[:, 0] / points_2d_3[:, 2]).round().long()  # [6, 480000]
-    y = (points_2d_3[:, 1] / points_2d_3[:, 2]).round().long()  # [6, 480000]
-    z = points_2d_3[:, 2]  # [6, 480000]
-    valid = (x >= 0) & (y >= 0) & (x < width) & (y < height) & (z > 0)  # [6, 480000]
-
-    # method2：特征填充，只填充有效特征，重复特征直接覆盖
-    volume = torch.zeros(
-        (n_channels, points.shape[-1]), device=features.device
-    ).type_as(features)
-    for i in range(n_images):
-        volume[:, valid[i]] = features[i, :, y[i, valid[i]], x[i, valid[i]]]
-
-    volume = volume.view(n_channels, n_x_voxels, n_y_voxels, n_z_voxels)
-    return volume
+    def backproject_vanilla(self, features, points, projection):
+        n_images, n_channels, height, width = features.shape
+        n_x_voxels, n_y_voxels, n_z_voxels = points.shape[-3:]
+        # [3, 200, 200, 12] -> [1, 3, 480000] -> [6, 3, 480000]
+        points = points.view(1, 3, -1).expand(n_images, 3, -1)
+        # [6, 3, 480000] -> [6, 4, 480000]
+        points = torch.cat((points, torch.ones_like(points[:, :1])), dim=1)
+        # ego_to_cam
+        # [6, 3, 4] * [6, 4, 480000] -> [6, 3, 480000]
+        points_2d_3 = torch.bmm(projection, points)  # lidar2img
+        x = (points_2d_3[:, 0] / points_2d_3[:, 2]).round().long()  # [6, 480000]
+        y = (points_2d_3[:, 1] / points_2d_3[:, 2]).round().long()  # [6, 480000]
+        z = points_2d_3[:, 2]  # [6, 480000]
+        valid = (x >= 0) & (y >= 0) & (x < width) & (y < height) & (z > 0)  # [6, 480000]
+        volume = torch.zeros(
+            (n_images, n_channels, points.shape[-1]), device=features.device
+        ).type_as(features)  # [6, 64, 480000]
+        for i in range(n_images):
+            volume[i, :, valid[i]] = features[i, :, y[i, valid[i]], x[i, valid[i]]]
+        # [6, 64, 480000] -> [6, 64, 200, 200, 12]
+        volume = volume.view(n_images, n_channels, n_x_voxels, n_y_voxels, n_z_voxels)
+        # [6, 480000] -> [6, 1, 200, 200, 12]
+        valid = valid.view(n_images, 1, n_x_voxels, n_y_voxels, n_z_voxels)
+        return volume, valid

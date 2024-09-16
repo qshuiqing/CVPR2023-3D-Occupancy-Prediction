@@ -14,15 +14,15 @@ from mmseg.ops import resize
 @DETECTORS.register_module()
 class ConvOcc(BaseDetector):
     def __init__(self,
+                 # Modules
                  img_backbone,
                  img_neck,
                  neck_fuse,
-                 # view transformer
                  img_view_transformer,
-                 # bev encoder
                  img_bev_encoder_backbone,
                  img_bev_encoder_neck,
                  bbox_head,
+
                  init_cfg=None,
                  multi_scale_id=None,
                  with_cp=False,
@@ -70,10 +70,11 @@ class ConvOcc(BaseDetector):
 
     def extract_feat(self, img, img_metas=None):
 
+        # Extract image features.
         mlvl_feats = self.extract_img_feat(img)
 
-        # (1,64,200,200)
-        x = self.img_view_transformer(mlvl_feats, img_metas)
+        # VT (1,64,200,200)
+        x = self.img_view_transformer(mlvl_feats, img_metas)  # ConvOccLSVT
 
         # (1,256,200,200)
         x = self.bev_encoder(x)

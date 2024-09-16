@@ -93,17 +93,12 @@ model = dict(
         type='ConvOccLSVT',
         in_channels=64 * n_frame * 8,  # (c,n_times,dz)
         out_channels=64,
+        pc_range=point_cloud_range,
         n_voxels=[
             [200, 200, 8],  # 4x
             [150, 150, 8],  # 8x
             [100, 100, 8],  # 16x
         ],
-        voxel_size=[
-            [0.4, 0.4, 0.8],  # 4x
-            [8 / 15, 8 / 15, 0.8],  # 8x
-            [0.8, 0.8, 0.8],  # 16x
-        ],
-        back_project='mean',
         use_height_attention=use_height_attention,
     ),
     img_bev_encoder_backbone=dict(
