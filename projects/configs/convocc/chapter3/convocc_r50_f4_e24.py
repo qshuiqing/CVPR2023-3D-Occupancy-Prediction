@@ -140,7 +140,6 @@ train_pipeline = [
     dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True, with_attr_label=False),
     dict(type='ObjectRangeFilter', point_cloud_range=point_cloud_range),
     dict(type='ObjectNameFilter', classes=class_names),
-    dict(type='KittiSetOrigin', point_cloud_range=point_cloud_range),
     dict(type='DefaultFormatBundle3D', class_names=class_names),
     dict(type='CustomCollect3D', keys=['img', 'voxel_semantics', 'mask_lidar', 'mask_camera'])
 ]
@@ -148,7 +147,6 @@ train_pipeline = [
 test_pipeline = [
     dict(type='LoadMultiViewImageFromFiles', to_float32=False),
     dict(type='LoadOccGTFromFile', data_root=occ_gt_data_root),
-    dict(type='KittiSetOrigin', point_cloud_range=point_cloud_range),
     dict(type='RandomAugImageMultiViewImage', data_config=data_config, is_train=False),
     dict(type='LoadAnnotationsBEVDepth', bda_aug_conf=bda_aug_conf, classes=class_names, is_train=False),
     dict(type='NormalizeMultiviewImage', **img_norm_cfg),
@@ -259,45 +257,7 @@ custom_hooks = [
     ),
 ]
 
-# r50 + height + t4 + 24e
+# r50 + height + f4 + 24e
 # epoch_24.pth
-# ===> per class IoU of 6019 samples:
-# ===> others - IoU = 7.64
-# ===> barrier - IoU = 41.09
-# ===> bicycle - IoU = 17.5
-# ===> bus - IoU = 43.28
-# ===> car - IoU = 46.65
-# ===> construction_vehicle - IoU = 19.77
-# ===> motorcycle - IoU = 21.1
-# ===> pedestrian - IoU = 18.51
-# ===> traffic_cone - IoU = 12.25
-# ===> trailer - IoU = 31.54
-# ===> truck - IoU = 33.99
-# ===> driveable_surface - IoU = 79.35
-# ===> other_flat - IoU = 39.99
-# ===> sidewalk - IoU = 49.08
-# ===> terrain - IoU = 52.21
-# ===> manmade - IoU = 38.09
-# ===> vegetation - IoU = 33.13
-# ===> mIoU of 6019 samples: 34.42
 
 # epoch_24_ema.pth
-# ===> per class IoU of 6019 samples:
-# ===> others - IoU = 7.64
-# ===> barrier - IoU = 40.98
-# ===> bicycle - IoU = 17.53
-# ===> bus - IoU = 43.2
-# ===> car - IoU = 46.61
-# ===> construction_vehicle - IoU = 19.81
-# ===> motorcycle - IoU = 21.15
-# ===> pedestrian - IoU = 18.34
-# ===> traffic_cone - IoU = 12.18
-# ===> trailer - IoU = 31.52
-# ===> truck - IoU = 33.98
-# ===> driveable_surface - IoU = 79.37
-# ===> other_flat - IoU = 39.86
-# ===> sidewalk - IoU = 49.05
-# ===> terrain - IoU = 52.29
-# ===> manmade - IoU = 38.07
-# ===> vegetation - IoU = 33.06
-# ===> mIoU of 6019 samples: 34.39

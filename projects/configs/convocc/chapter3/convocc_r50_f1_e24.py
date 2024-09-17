@@ -93,17 +93,12 @@ model = dict(
         type='ConvOccLSVT',
         in_channels=64 * n_frame * 8,  # (c,n_times,dz)
         out_channels=64,
+        pc_range=point_cloud_range,
         n_voxels=[
             [200, 200, 8],  # 4x
             [150, 150, 8],  # 8x
             [100, 100, 8],  # 16x
         ],
-        voxel_size=[
-            [0.4, 0.4, 0.8],  # 4x
-            [8 / 15, 8 / 15, 0.8],  # 8x
-            [0.8, 0.8, 0.8],  # 16x
-        ],
-        back_project='mean',
         use_height_attention=use_height_attention,
     ),
     img_bev_encoder_backbone=dict(
@@ -145,7 +140,6 @@ train_pipeline = [
     dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True, with_attr_label=False),
     dict(type='ObjectRangeFilter', point_cloud_range=point_cloud_range),
     dict(type='ObjectNameFilter', classes=class_names),
-    dict(type='KittiSetOrigin', point_cloud_range=point_cloud_range),
     dict(type='DefaultFormatBundle3D', class_names=class_names),
     dict(type='CustomCollect3D', keys=['img', 'voxel_semantics', 'mask_lidar', 'mask_camera'])
 ]
@@ -153,7 +147,6 @@ train_pipeline = [
 test_pipeline = [
     dict(type='LoadMultiViewImageFromFiles', to_float32=False),
     dict(type='LoadOccGTFromFile', data_root=occ_gt_data_root),
-    dict(type='KittiSetOrigin', point_cloud_range=point_cloud_range),
     dict(type='RandomAugImageMultiViewImage', data_config=data_config, is_train=False),
     dict(type='LoadAnnotationsBEVDepth', bda_aug_conf=bda_aug_conf, classes=class_names, is_train=False),
     dict(type='NormalizeMultiviewImage', **img_norm_cfg),

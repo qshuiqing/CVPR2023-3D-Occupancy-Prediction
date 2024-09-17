@@ -8,6 +8,8 @@ from mmcv.cnn import ConvModule
 from mmcv.runner import BaseModule
 from mmdet.models import NECKS
 
+from .mapping_table import MappingTable
+
 
 class CHAttention(nn.Module):
     def __init__(self, in_planes):
@@ -111,6 +113,9 @@ class ConvOccLSVT(BaseModule):
             act_cfg=act_cfg,
             inplace=False)
 
+        # Cache
+        self.table = MappingTable()
+
     def _init_points(self, pc_range, n_voxels):
         x_min, y_min, z_min, x_max, y_max, z_max = pc_range
         for i, n_voxel in enumerate(n_voxels):
@@ -166,7 +171,10 @@ class ConvOccLSVT(BaseModule):
                     # Sampling points.
                     points = getattr(self, f'points_{lvl}')
 
-                    volume, valid = self.backproject_vanilla(feat_i[:, :, :height, :width], points, projection)
+                    volume, valid = self.backproject_vanilla((img_meta["index"], lvl),  # tag for cache.
+                                                             feat_i[:, :, :height, :width],
+                                                             points,
+                                                             projection)
                     volume = volume.sum(dim=0)
                     valid = valid.sum(dim=0)
                     volume = volume / valid
@@ -208,16 +216,31 @@ class ConvOccLSVT(BaseModule):
 
         return out  # (1, 64, 200, 200)
 
-    def backproject_vanilla(self, features, points, projection):
+    def mapping_table(self, tag, points, projection):
+        if self.training:
+            # ego_to_cam
+            # [6, 3, 4] * [6, 4, 480000] -> [6, 3, 480000]
+            points_2d_3 = torch.bmm(projection, points)  # lidar2img
+        else:
+            points_2d_3 = self.table.get(tag).to(projection.device)
+        # points_2d_3 = torch.bmm(projection, points)
+
+        # with h5py.File('caches/mapping_table.h5', 'a') as f:
+        #     f.create_dataset(tag, data=points_2d_3.cpu().numpy())
+
+        return points_2d_3
+
+    def backproject_vanilla(self, tag, features, points, projection):
         n_images, n_channels, height, width = features.shape
         n_x_voxels, n_y_voxels, n_z_voxels = points.shape[-3:]
         # [3, 200, 200, 12] -> [1, 3, 480000] -> [6, 3, 480000]
         points = points.view(1, 3, -1).expand(n_images, 3, -1)
         # [6, 3, 480000] -> [6, 4, 480000]
         points = torch.cat((points, torch.ones_like(points[:, :1])), dim=1)
-        # ego_to_cam
-        # [6, 3, 4] * [6, 4, 480000] -> [6, 3, 480000]
-        points_2d_3 = torch.bmm(projection, points)  # lidar2img
+
+        # 3d->2d
+        points_2d_3 = self.mapping_table(tag, points, projection)
+
         x = (points_2d_3[:, 0] / points_2d_3[:, 2]).round().long()  # [6, 480000]
         y = (points_2d_3[:, 1] / points_2d_3[:, 2]).round().long()  # [6, 480000]
         z = points_2d_3[:, 2]  # [6, 480000]
