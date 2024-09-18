@@ -22,7 +22,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description='MMDet benchmark a model')
     parser.add_argument('config', help='test config file path')
     parser.add_argument('--checkpoint', default=None, help='checkpoint file')
-    parser.add_argument('--samples', default=2000, help='samples to benchmark')
+    parser.add_argument('--samples', default=1000, help='samples to benchmark')
     parser.add_argument(
         '--log-interval', default=50, help='interval of logging')
     parser.add_argument(
@@ -71,7 +71,7 @@ def main():
     model.eval()
 
     # the first several iterations may be very slow so skip them
-    num_warmup = 5
+    num_warmup = 500
     pure_inf_time = 0
 
     model = model.module
@@ -94,10 +94,10 @@ def main():
 
         if i >= num_warmup:
             pure_inf_time += elapsed
-            if (i + 1) % args.log_interval == 0:
-                fps = (i + 1 - num_warmup) / pure_inf_time
-                print(f'Done image [{i + 1:<3}/ {args.samples}], '
-                      f'fps: {fps:.2f} img / s')
+            # if (i + 1) % args.log_interval == 0:
+            #     fps = (i + 1 - num_warmup) / pure_inf_time
+            #     print(f'Done image [{i + 1:<3}/ {args.samples}], '
+            #           f'fps: {fps:.2f} img / s')
 
         if (i + 1) == args.samples:
             pure_inf_time += elapsed
