@@ -88,7 +88,7 @@ def main():
         torch.cuda.synchronize()
         start_time = time.perf_counter()
         with torch.no_grad():
-            bev_feats = img_view_transformer(mlvl_feats, img_metas)
+            bev_feats = img_view_transformer.extract_voxel_feat(mlvl_feats, img_metas)
         torch.cuda.synchronize()
         elapsed = time.perf_counter() - start_time
 

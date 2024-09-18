@@ -90,7 +90,7 @@ model = dict(
         num_outs=4),
     neck_fuse=dict(in_channels=[256, 192, 128], out_channels=[64, 64, 64]),
     img_view_transformer=dict(
-        type='ConvOccLSVT',
+        type='ConvOccLSVTv2',
         in_channels=64 * n_frame * 8,  # (c,n_times,dz)
         out_channels=64,
         n_voxels=[
@@ -115,7 +115,7 @@ model = dict(
         in_channels=64 * 8 + 64 * 2,
         out_channels=256),
     bbox_head=dict(
-        type='OccHead',
+        type='OccHeadv2',
         bev_h=200,
         bev_w=200,
         pillar_h=16,
