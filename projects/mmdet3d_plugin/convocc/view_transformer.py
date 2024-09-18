@@ -8,7 +8,7 @@ from mmcv.cnn import ConvModule
 from mmcv.runner import BaseModule
 from mmdet.models import NECKS
 
-from .mapping_table import MappingTable
+from .mapping_table_v2 import MappingTableV2
 
 
 class CHAttention(nn.Module):
@@ -114,7 +114,8 @@ class ConvOccLSVT(BaseModule):
             inplace=False)
 
         # Cache
-        self.table = MappingTable()
+        self.table = MappingTableV2()
+        # self.data = {}
 
     def _init_points(self, pc_range, n_voxels):
         x_min, y_min, z_min, x_max, y_max, z_max = pc_range
@@ -217,16 +218,23 @@ class ConvOccLSVT(BaseModule):
         return out  # (1, 64, 200, 200)
 
     def mapping_table(self, tag, points, projection):
+        # idx, lvl = tag
         if self.training:
             # ego_to_cam
             # [6, 3, 4] * [6, 4, 480000] -> [6, 3, 480000]
             points_2d_3 = torch.bmm(projection, points)  # lidar2img
         else:
-            points_2d_3 = self.table.get(tag).to(projection.device)
+            points_2d_3 = self.table.get(tag)
         # points_2d_3 = torch.bmm(projection, points)
 
         # with h5py.File('caches/mapping_table.h5', 'a') as f:
         #     f.create_dataset(tag, data=points_2d_3.cpu().numpy())
+
+        # self.data[lvl] = points_2d_3
+        # if lvl == 2:
+        #     with open(f'./caches/{idx}.pkl', 'wb') as file:
+        #         pickle.dump(self.data, file)
+        #     self.data = {}
 
         return points_2d_3
 
