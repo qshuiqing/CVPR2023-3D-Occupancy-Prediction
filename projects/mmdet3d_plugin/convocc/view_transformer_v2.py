@@ -68,6 +68,7 @@ class ConvOccLSVTv2(BaseModule):
                  out_channels,
                  use_height_attention,
 
+                 n_layers,
                  back_project,
                  conv_cfg=None,
                  norm_cfg=None,
@@ -84,16 +85,19 @@ class ConvOccLSVTv2(BaseModule):
         self.back_project = back_project
         self.upsample_cfg = upsample_cfg
 
+        # 多尺度层数
+        self.n_layers = n_layers
+
         # 高度注意力
         self.use_height_attention = use_height_attention
         if self.use_height_attention:
             self.attentions = nn.ModuleList()
-            for i in range(len(n_voxels)):
+            for i in range(self.n_layers):
                 self.attentions.append(BasicBlock(in_channels))
 
         # 多尺度融合
         self.lateral_convs = nn.ModuleList()
-        for i in range(len(n_voxels)):  # 3
+        for i in range(self.n_layers):  # 3
             l_conv = ConvModule(
                 in_channels,
                 out_channels,

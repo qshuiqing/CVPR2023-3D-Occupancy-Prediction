@@ -17,12 +17,12 @@ class ConvOcc(BaseDetector):
                  img_backbone,
                  img_neck,
                  neck_fuse,
-                 # view transformer
                  img_view_transformer,
-                 # bev encoder
                  img_bev_encoder_backbone,
                  img_bev_encoder_neck,
                  bbox_head,
+
+                 n_layers,
                  init_cfg=None,
                  multi_scale_id=None,
                  with_cp=False,
@@ -31,12 +31,9 @@ class ConvOcc(BaseDetector):
 
         self.backbone = build_backbone(img_backbone)
         self.neck = build_neck(img_neck)
-
         self.img_view_transformer = build_neck(img_view_transformer)
-
         self.img_bev_encoder_backbone = build_backbone(img_bev_encoder_backbone)
         self.img_bev_encoder_neck = build_neck(img_bev_encoder_neck)
-
         if isinstance(neck_fuse['in_channels'], list):
             for i, (in_channels, out_channels) in enumerate(zip(neck_fuse['in_channels'], neck_fuse['out_channels'])):
                 self.add_module(
@@ -45,6 +42,7 @@ class ConvOcc(BaseDetector):
         else:
             self.neck_fuse = nn.Conv2d(neck_fuse["in_channels"], neck_fuse["out_channels"], 3, 1, 1)
 
+        self.n_layers = n_layers
         self.multi_scale_id = multi_scale_id
 
         self.bbox_head = build_head(bbox_head)
@@ -96,6 +94,12 @@ class ConvOcc(BaseDetector):
         else:  # (24,64,64/i,176/i),i=1,2,4,8
             mlvl_feats = _inner_forward(x)
         mlvl_feats = list(mlvl_feats)
+
+        mlvl_feats = self.ffm(mlvl_feats)
+
+        return mlvl_feats
+
+    def ffm(self, mlvl_feats):
         if self.multi_scale_id is not None:  # [0,1,2]
             mlvl_feats_ = []
             for msid in self.multi_scale_id:
@@ -118,7 +122,7 @@ class ConvOcc(BaseDetector):
                     mlvl_feats_.append(fuse_feats)
                 else:
                     mlvl_feats_.append(mlvl_feats[msid])
-            mlvl_feats = mlvl_feats_  # (24,64,64/i,176/i),i=1,2,4
+            mlvl_feats = mlvl_feats_[:self.n_layers]  # (24,64,64/i,176/i),i=1,2,4
         return mlvl_feats
 
     def forward_train(self,
