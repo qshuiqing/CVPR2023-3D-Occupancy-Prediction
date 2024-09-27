@@ -58,6 +58,9 @@ multi_scale_id = [0, 1, 2]  # 4x/8x/16x
 ############################################
 # Ablation Configuration
 
+# 使用 FFM
+use_ffm = True
+
 # 多尺度层数
 n_layers = 1
 
@@ -73,6 +76,7 @@ adj_ids = [1, 3, 5][:n_frame - 1]
 
 model = dict(
     type='ConvOcc',
+    use_ffm=use_ffm,
     n_layers=n_layers,
     multi_scale_id=multi_scale_id,  # 4x
     img_backbone=dict(
@@ -108,6 +112,7 @@ model = dict(
             [0.8, 0.8, 0.8],  # 16x
         ],
         back_project='mean',
+        n_layers=n_layers,
         use_height_attention=use_height_attention,
     ),
     img_bev_encoder_backbone=dict(

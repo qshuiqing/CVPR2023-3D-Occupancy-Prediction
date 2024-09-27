@@ -14,6 +14,7 @@ from mmseg.ops import resize
 @DETECTORS.register_module()
 class ConvOcc(BaseDetector):
     def __init__(self,
+                 # Modules
                  img_backbone,
                  img_neck,
                  neck_fuse,
@@ -22,33 +23,30 @@ class ConvOcc(BaseDetector):
                  img_bev_encoder_neck,
                  bbox_head,
 
+                 use_ffm,
                  n_layers,
                  init_cfg=None,
-                 multi_scale_id=None,
-                 with_cp=False,
                  **kwargs):
         super().__init__(init_cfg=init_cfg)
 
+        # Modules
         self.backbone = build_backbone(img_backbone)
         self.neck = build_neck(img_neck)
         self.img_view_transformer = build_neck(img_view_transformer)
         self.img_bev_encoder_backbone = build_backbone(img_bev_encoder_backbone)
         self.img_bev_encoder_neck = build_neck(img_bev_encoder_neck)
-        if isinstance(neck_fuse['in_channels'], list):
-            for i, (in_channels, out_channels) in enumerate(zip(neck_fuse['in_channels'], neck_fuse['out_channels'])):
-                self.add_module(
-                    f'neck_fuse_{i}',
-                    nn.Conv2d(in_channels, out_channels, 3, 1, 1))
-        else:
-            self.neck_fuse = nn.Conv2d(neck_fuse["in_channels"], neck_fuse["out_channels"], 3, 1, 1)
-
-        self.n_layers = n_layers
-        self.multi_scale_id = multi_scale_id
-
         self.bbox_head = build_head(bbox_head)
 
-        # checkpoint
-        self.with_cp = with_cp
+        # FFM
+        for i in range(n_layers):
+            self.add_module(
+                f'neck_fuse_{i}',
+                nn.Conv2d(neck_fuse['in_channels'][i],
+                          neck_fuse['out_channels'][i])
+            )
+
+        self.use_ffm = use_ffm
+        self.n_layers = n_layers
 
     @force_fp32()
     def bev_encoder(self, x):
@@ -100,30 +98,25 @@ class ConvOcc(BaseDetector):
         return mlvl_feats
 
     def ffm(self, mlvl_feats):
-        if self.multi_scale_id is not None:  # [0,1,2]
-            mlvl_feats_ = []
-            for msid in self.multi_scale_id:
+        mlvl_feats_ = []
+        if self.use_ffm:
+            for msid in range(self.n_layers):
                 # fpn output fusion
-                if getattr(self, f'neck_fuse_{msid}', None) is not None:
-                    fuse_feats = [mlvl_feats[msid]]
-                    for i in range(msid + 1, len(mlvl_feats)):
-                        resized_feat = resize(
-                            mlvl_feats[i],
-                            size=mlvl_feats[msid].size()[2:],
-                            mode="bilinear",
-                            align_corners=False)
-                        fuse_feats.append(resized_feat)
+                fuse_feats = [mlvl_feats[msid]]
+                for i in range(msid + 1, len(mlvl_feats)):
+                    resized_feat = resize(
+                        mlvl_feats[i],
+                        size=mlvl_feats[msid].size()[2:],
+                        mode="bilinear",
+                        align_corners=False)
+                    fuse_feats.append(resized_feat)
 
-                    if len(fuse_feats) > 1:
-                        fuse_feats = torch.cat(fuse_feats, dim=1)
-                    else:
-                        fuse_feats = fuse_feats[0]
-                    fuse_feats = getattr(self, f'neck_fuse_{msid}')(fuse_feats)
-                    mlvl_feats_.append(fuse_feats)
-                else:
-                    mlvl_feats_.append(mlvl_feats[msid])
-            mlvl_feats = mlvl_feats_[:self.n_layers]  # (24,64,64/i,176/i),i=1,2,4
-        return mlvl_feats
+                fuse_feats = torch.cat(fuse_feats, dim=1)
+                fuse_feats = getattr(self, f'neck_fuse_{msid}')(fuse_feats)
+                mlvl_feats_.append(fuse_feats)  # (24,64,64/i,176/i),i=1,2,4
+        else:
+            mlvl_feats_ = mlvl_feats[:self.n_layers]
+        return mlvl_feats_
 
     def forward_train(self,
                       img,  # (1,24,3,256,704)
