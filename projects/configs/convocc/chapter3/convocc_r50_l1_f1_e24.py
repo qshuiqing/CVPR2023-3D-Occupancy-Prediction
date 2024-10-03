@@ -273,45 +273,45 @@ custom_hooks = [
     ),
 ]
 
-# r50 + height + t4 + 24e
+# r50 + height + layer x 1 + frame x 1 + 24e
 # epoch_24.pth
 # ===> per class IoU of 6019 samples:
-# ===> others - IoU = 7.64
-# ===> barrier - IoU = 41.09
-# ===> bicycle - IoU = 17.5
-# ===> bus - IoU = 43.28
-# ===> car - IoU = 46.65
-# ===> construction_vehicle - IoU = 19.77
-# ===> motorcycle - IoU = 21.1
-# ===> pedestrian - IoU = 18.51
-# ===> traffic_cone - IoU = 12.25
-# ===> trailer - IoU = 31.54
-# ===> truck - IoU = 33.99
-# ===> driveable_surface - IoU = 79.35
-# ===> other_flat - IoU = 39.99
-# ===> sidewalk - IoU = 49.08
-# ===> terrain - IoU = 52.21
-# ===> manmade - IoU = 38.09
-# ===> vegetation - IoU = 33.13
-# ===> mIoU of 6019 samples: 34.42
+# ===> others - IoU = 7.49
+# ===> barrier - IoU = 39.35
+# ===> bicycle - IoU = 16.88
+# ===> bus - IoU = 44.44
+# ===> car - IoU = 47.51
+# ===> construction_vehicle - IoU = 20.24
+# ===> motorcycle - IoU = 20.26
+# ===> pedestrian - IoU = 17.88
+# ===> traffic_cone - IoU = 11.53
+# ===> trailer - IoU = 30.55
+# ===> truck - IoU = 33.41
+# ===> driveable_surface - IoU = 78.87
+# ===> other_flat - IoU = 39.08
+# ===> sidewalk - IoU = 48.4
+# ===> terrain - IoU = 51.41
+# ===> manmade - IoU = 38.27
+# ===> vegetation - IoU = 32.67
+# ===> mIoU of 6019 samples: 34.01
 
 # epoch_24_ema.pth
 # ===> per class IoU of 6019 samples:
-# ===> others - IoU = 7.64
-# ===> barrier - IoU = 40.98
-# ===> bicycle - IoU = 17.53
-# ===> bus - IoU = 43.2
-# ===> car - IoU = 46.61
-# ===> construction_vehicle - IoU = 19.81
-# ===> motorcycle - IoU = 21.15
-# ===> pedestrian - IoU = 18.34
-# ===> traffic_cone - IoU = 12.18
-# ===> trailer - IoU = 31.52
-# ===> truck - IoU = 33.98
-# ===> driveable_surface - IoU = 79.37
-# ===> other_flat - IoU = 39.86
-# ===> sidewalk - IoU = 49.05
-# ===> terrain - IoU = 52.29
-# ===> manmade - IoU = 38.07
-# ===> vegetation - IoU = 33.06
-# ===> mIoU of 6019 samples: 34.39
+# ===> others - IoU = 7.67
+# ===> barrier - IoU = 39.59
+# ===> bicycle - IoU = 17.27
+# ===> bus - IoU = 44.21
+# ===> car - IoU = 47.61
+# ===> construction_vehicle - IoU = 20.22
+# ===> motorcycle - IoU = 20.59
+# ===> pedestrian - IoU = 17.89
+# ===> traffic_cone - IoU = 11.19
+# ===> trailer - IoU = 30.77
+# ===> truck - IoU = 33.51
+# ===> driveable_surface - IoU = 78.91
+# ===> other_flat - IoU = 39.22
+# ===> sidewalk - IoU = 48.46
+# ===> terrain - IoU = 51.54
+# ===> manmade - IoU = 38.22
+# ===> vegetation - IoU = 32.67
+# ===> mIoU of 6019 samples: 34.09

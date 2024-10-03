@@ -62,14 +62,14 @@ multi_scale_id = [0, 1, 2]  # 4x/8x/16x
 use_ffm = True
 
 # 多尺度层数
-n_layers = 3
+n_layers = 2
 
 # 是否使用高度注意力
 use_height_attention = False
 
 # 是否使用时间帧
 use_sequential = True
-n_frame = 4  # 1 + 3
+n_frame = 1  # 1 + 3
 adj_ids = [1, 3, 5][:n_frame - 1]
 
 ############################################
@@ -273,46 +273,45 @@ custom_hooks = [
     ),
 ]
 
-# r50 + t4 + 24e
+# r50 + height + layer x 2 + frame x 1 + 24e
 # epoch_24.pth
 # ===> per class IoU of 6019 samples:
-# ===> others - IoU = 8.17
-# ===> barrier - IoU = 42.86
-# ===> bicycle - IoU = 19.42
-# ===> bus - IoU = 42.49
-# ===> car - IoU = 46.58
-# ===> construction_vehicle - IoU = 21.27
-# ===> motorcycle - IoU = 21.06
-# ===> pedestrian - IoU = 18.76
-# ===> traffic_cone - IoU = 13.66
-# ===> trailer - IoU = 31.97
-# ===> truck - IoU = 33.99
-# ===> driveable_surface - IoU = 80.08
-# ===> other_flat - IoU = 40.42
-# ===> sidewalk - IoU = 50.53
-# ===> terrain - IoU = 52.67
-# ===> manmade - IoU = 39.01
-# ===> vegetation - IoU = 34.19
-# ===> mIoU of 6019 samples: 35.13
-
+# ===> others - IoU = 7.26
+# ===> barrier - IoU = 39.67
+# ===> bicycle - IoU = 16.38
+# ===> bus - IoU = 43.7
+# ===> car - IoU = 47.82
+# ===> construction_vehicle - IoU = 18.52
+# ===> motorcycle - IoU = 20.8
+# ===> pedestrian - IoU = 18.11
+# ===> traffic_cone - IoU = 11.31
+# ===> trailer - IoU = 29.61
+# ===> truck - IoU = 33.62
+# ===> driveable_surface - IoU = 78.7
+# ===> other_flat - IoU = 38.76
+# ===> sidewalk - IoU = 48.27
+# ===> terrain - IoU = 51.44
+# ===> manmade - IoU = 37.91
+# ===> vegetation - IoU = 32.4
+# ===> mIoU of 6019 samples: 33.78
 
 # epoch_24_ema.pth
 # ===> per class IoU of 6019 samples:
-# ===> others - IoU = 8.14
-# ===> barrier - IoU = 42.77
-# ===> bicycle - IoU = 19.48
-# ===> bus - IoU = 42.37
-# ===> car - IoU = 46.7
-# ===> construction_vehicle - IoU = 21.26
-# ===> motorcycle - IoU = 21.02
-# ===> pedestrian - IoU = 18.77
-# ===> traffic_cone - IoU = 13.37
-# ===> trailer - IoU = 31.78
-# ===> truck - IoU = 33.97
-# ===> driveable_surface - IoU = 80.19
-# ===> other_flat - IoU = 40.43
-# ===> sidewalk - IoU = 50.61
-# ===> terrain - IoU = 52.88
-# ===> manmade - IoU = 39.09
-# ===> vegetation - IoU = 34.06
-# ===> mIoU of 6019 samples: 35.11
+# ===> others - IoU = 7.47
+# ===> barrier - IoU = 40.06
+# ===> bicycle - IoU = 16.7
+# ===> bus - IoU = 43.49
+# ===> car - IoU = 47.83
+# ===> construction_vehicle - IoU = 18.59
+# ===> motorcycle - IoU = 20.97
+# ===> pedestrian - IoU = 17.85
+# ===> traffic_cone - IoU = 11.42
+# ===> trailer - IoU = 29.99
+# ===> truck - IoU = 33.77
+# ===> driveable_surface - IoU = 78.76
+# ===> other_flat - IoU = 38.9
+# ===> sidewalk - IoU = 48.25
+# ===> terrain - IoU = 51.62
+# ===> manmade - IoU = 37.98
+# ===> vegetation - IoU = 32.41
+# ===> mIoU of 6019 samples: 33.89

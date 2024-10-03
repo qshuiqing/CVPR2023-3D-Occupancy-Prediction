@@ -75,20 +75,37 @@ def main():
     pure_inf_time = 0
 
     model = model.module
-    img_view_transformer = model.img_view_transformer
+    prev_bev = model.prev_frame_info['prev_bev']
+
+    occ_head = model.pts_bbox_head
+    dtype = torch.float32
+    bev_queries = occ_head.bev_embedding.weight.to(dtype)
+    bev_mask = torch.zeros((1, 200, 200),
+                           device=bev_queries.device).to(dtype)
+    bev_pos = occ_head.positional_encoding(bev_mask).to(dtype)
+
+    transformer_occ = model.pts_bbox_head.transformer
+
     # benchmark with several samples and take the average
     for i, data in enumerate(data_loader):
 
-        img = data['img'].data[0].cuda()
-        img_metas = data['img_metas'].data[0]
+        img = data['img'][0].data[0].cuda()
+        img_metas = data['img_metas'][0].data[0]
 
         with torch.no_grad():
-            mlvl_feats = model.extract_img_feat(img)
+            mlvl_feats = model.extract_img_feat(img, img_metas)
 
         torch.cuda.synchronize()
         start_time = time.perf_counter()
         with torch.no_grad():
-            bev_feats = img_view_transformer.extract_voxel_feat(mlvl_feats, img_metas)
+            bev_feats = transformer_occ.get_bev_features(mlvl_feats,
+                                                         bev_queries,
+                                                         200,
+                                                         200,
+                                                         grid_length=(0.4, 0.4),
+                                                         bev_pos=bev_pos,
+                                                         prev_bev=prev_bev,
+                                                         img_metas=img_metas)
         torch.cuda.synchronize()
         elapsed = time.perf_counter() - start_time
 

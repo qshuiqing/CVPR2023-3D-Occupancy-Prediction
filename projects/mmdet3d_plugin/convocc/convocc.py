@@ -3,7 +3,6 @@ import copy
 
 import torch
 import torch.nn as nn
-import torch.utils.checkpoint as cp
 from mmcv.runner import force_fp32
 from mmdet.models import DETECTORS, build_backbone, build_head, build_neck
 from mmdet.models.detectors import BaseDetector
@@ -42,7 +41,10 @@ class ConvOcc(BaseDetector):
             self.add_module(
                 f'neck_fuse_{i}',
                 nn.Conv2d(neck_fuse['in_channels'][i],
-                          neck_fuse['out_channels'][i])
+                          neck_fuse['out_channels'][i],
+                          3,
+                          1,
+                          1)
             )
 
         self.use_ffm = use_ffm
@@ -81,17 +83,8 @@ class ConvOcc(BaseDetector):
         img = img.view([-1] + list(img.shape)[2:])
         # (24,256*i,64/i,176/i) i=1,2,4,8
         x = self.backbone(img)
-
-        # fuse features
-        def _inner_forward(x):
-            out = self.neck(x)
-            return out
-
-        if self.with_cp and x.requires_grad:
-            mlvl_feats = cp.checkpoint(_inner_forward, x)
-        else:  # (24,64,64/i,176/i),i=1,2,4,8
-            mlvl_feats = _inner_forward(x)
-        mlvl_feats = list(mlvl_feats)
+        # (24,64,64/i,176/i),i=1,2,4,8
+        mlvl_feats = self.neck(x)
 
         mlvl_feats = self.ffm(mlvl_feats)
 
