@@ -58,6 +58,12 @@ multi_scale_id = [0, 1, 2]  # 4x/8x/16x
 ############################################
 # Ablation Configuration
 
+# 使用 FFM
+use_ffm = True
+
+# 多尺度层数
+n_layers = 3
+
 # 是否使用高度注意力
 use_height_attention = False
 
@@ -70,6 +76,8 @@ adj_ids = [1, 3, 5][:n_frame - 1]
 
 model = dict(
     type='ConvOcc',
+    use_ffm=use_ffm,
+    n_layers=n_layers,
     multi_scale_id=multi_scale_id,  # 4x
     img_backbone=dict(
         type='ResNet',
@@ -90,7 +98,7 @@ model = dict(
         num_outs=4),
     neck_fuse=dict(in_channels=[256, 192, 128], out_channels=[64, 64, 64]),
     img_view_transformer=dict(
-        type='ConvOccLSVT',
+        type='ConvOccLSVTv2',
         in_channels=64 * n_frame * 8,  # (c,n_times,dz)
         out_channels=64,
         n_voxels=[
@@ -104,6 +112,7 @@ model = dict(
             [0.8, 0.8, 0.8],  # 16x
         ],
         back_project='mean',
+        n_layers=n_layers,
         use_height_attention=use_height_attention,
     ),
     img_bev_encoder_backbone=dict(
@@ -115,7 +124,7 @@ model = dict(
         in_channels=64 * 8 + 64 * 2,
         out_channels=256),
     bbox_head=dict(
-        type='OccHead',
+        type='OccHeadv2',
         bev_h=200,
         bev_w=200,
         pillar_h=16,
